@@ -71,3 +71,7 @@ Each open window has its own live preview card. Cards flow left to right and the
 ### Shared glass material
 
 Clean11 Settings > Overview & search controls frosted glass for search, dock, and preview popups. Glass visibility (0–100%) adjusts the dark tint over the cached blurred wallpaper, not live application transparency. Save applies to the dock immediately and search/previews on their next opening. High contrast, disabled Windows transparency, or an unavailable wallpaper use the solid fallback.
+
+### Live dock backdrop
+
+The dock surface uses Windows Desktop Acrylic (Windows 11 build 22621 or newer) in a separate non-layered, nonactivating window beneath the icon layer. It samples the actual desktop content rather than the wallpaper file. Glass visibility adjusts the extra tint; the operating system controls Acrylic blur. Unsupported or disabled transparency falls back to a solid surface. Search and preview popup materials still use the cached wallpaper treatment. The material window follows dock hiding and closes with the dock.

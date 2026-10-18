@@ -30,6 +30,7 @@ sealed class DockWindow : Window {
     internal readonly ShellLease Lease=new ShellLease();
     readonly DockAppBar appbar=new DockAppBar();readonly DispatcherTimer pulse=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(150)};
     readonly DispatcherTimer refresh=new DispatcherTimer{Interval=TimeSpan.FromSeconds(1.5)},hoverDelay=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)};
+    DockBackdrop glassBackdrop;
     readonly Canvas strip=new Canvas();readonly Border backdrop;readonly List<DockTile> tiles=new List<DockTile>();
     readonly BlockingCollection<string> iconRequests=new BlockingCollection<string>();readonly Dictionary<string,BitmapSource> icons=new Dictionary<string,BitmapSource>(StringComparer.OrdinalIgnoreCase);readonly HashSet<string> pending=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     readonly Forms.NotifyIcon notification;List<DockAppWindow> windows=new List<DockAppWindow>();List<DockGroup> groups=new List<DockGroup>();
@@ -121,7 +122,7 @@ sealed class DockWindow : Window {
         HideDock(!shouldShow);if(fullscreen)CloseFlyout();
         foreach(var tile in tiles)if(tile.Group!=null&&tile.Dot!=null){bool active=tile.Group.Windows.Any(w=>w.Handle==foreground);tile.Dot.Background=ActivityTheme.Brush(active?"Accent":"Muted",active?"#60CDFF":"#B8B8B8");}
     }
-    void HideDock(bool hidden){if(showing==!hidden)return;showing=!hidden;if(hidden){hoverDelay.Stop();StopMotion();BeginAnimation(OpacityProperty,null);Opacity=0;IsHitTestVisible=false;DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()|0x20));}else{DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()&~0x20));IsHitTestVisible=true;if(State.ReducedMotion)Opacity=1;else BeginAnimation(OpacityProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(140)){FillBehavior=FillBehavior.Stop},HandoffBehavior.SnapshotAndReplace);Opacity=1;}}
+    void HideDock(bool hidden){if(showing==!hidden)return;showing=!hidden;RefreshGlass();if(hidden){hoverDelay.Stop();StopMotion();BeginAnimation(OpacityProperty,null);Opacity=0;IsHitTestVisible=false;DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()|0x20));}else{DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()&~0x20));IsHitTestVisible=true;if(State.ReducedMotion)Opacity=1;else BeginAnimation(OpacityProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(140)){FillBehavior=FillBehavior.Stop},HandoffBehavior.SnapshotAndReplace);Opacity=1;}}
     void Dropped(object sender,DragEventArgs e){if(e.Data.GetDataPresent("Clean11.Pin")){string id=(string)e.Data.GetData("Clean11.Pin");var pin=State.Pins.FirstOrDefault(p=>p.Id==id);if(pin!=null){int target=Math.Max(0,Math.Min(State.Pins.Count-1,(int)((e.GetPosition(strip).X-52)/slot)-1));State.Pins.Remove(pin);State.Pins.Insert(Math.Min(target,State.Pins.Count),pin);}}else if(e.Data.GetDataPresent(DataFormats.FileDrop)){foreach(string path in ((string[])e.Data.GetData(DataFormats.FileDrop)).Take(32))if(!State.Pins.Any(p=>p.Path.Equals(path,StringComparison.OrdinalIgnoreCase)))State.Pins.Add(DockState.FromPath(path));}State.Save();signature="";Rebuild();e.Handled=true;}
     internal void Launch(DockGroup group){CloseFlyout();try{DockState.Launch(group.Pin??new DockPin{Name=group.Name,Path=group.IconPath,AppId=group.Windows.Select(w=>w.AppId).FirstOrDefault()});}catch{Notify("Could not open this app. Remove the pin and add its app shortcut again in Dock settings.");}}
     internal void Open(string target){try{DockState.Launch(new DockPin{Path=target});}catch{Notify("This location could not be opened.");}}
@@ -139,11 +140,13 @@ sealed class DockWindow : Window {
     ContextMenu SettingsMenu(){var menu=new ContextMenu();menu.Items.Add(Item("Clean11 Settings",ShowSettings));menu.Items.Add(Item("Open Task Manager",()=>Open("taskmgr.exe")));menu.Items.Add(Item("Background apps",()=>Lease.ShowTray()));menu.Items.Add(new Separator());menu.Items.Add(Item("Exit dock and restore previous bars",()=>Application.Current.Shutdown()));return menu;}
     internal void ShowSettings(){CloseFlyout();if(settings!=null){settings.Activate();return;}settings=new DockSettings(this);settings.Closed+=(s,e)=>settings=null;settings.Show();settings.Activate();}
     internal void RefreshGlass(){
-        if(hwnd==IntPtr.Zero)return;
+        if(hwnd==IntPtr.Zero||disposed)return;
         bool glass=true;try{glass=OverviewPreferences.Load().Glass;}catch{}
-        var bounds=new System.Drawing.Rectangle((int)((Left+36)*dpi),(int)((Top+Height-backdrop.Height)*dpi),(int)(baseWidth*dpi),(int)(backdrop.Height*dpi));
-        backdrop.Background=FrostedMaterial.PanelBrush(bounds,Screen.Bounds,glass);
+        glass=FrostedMaterial.Enabled(glass);
+        if(glassBackdrop==null)glassBackdrop=new DockBackdrop();
+        glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,glass);
+        backdrop.Background=Brushes.Transparent;backdrop.BorderThickness=new Thickness(0);
     }
     internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
-    internal void DisposeDock(){if(disposed)return;disposed=true;pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
+    internal void DisposeDock(){if(disposed)return;disposed=true;if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
 }
