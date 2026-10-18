@@ -9,8 +9,24 @@ using System.Windows.Media;
 sealed class DockBackdrop : Window {
     [StructLayout(LayoutKind.Sequential)] struct Margins {public int Left,Right,Top,Bottom;}
     [DllImport("dwmapi.dll")] static extern int DwmExtendFrameIntoClientArea(IntPtr window,ref Margins margins);
+    [StructLayout(LayoutKind.Sequential)] struct AccentPolicy {public int State,Flags,GradientColor,AnimationId;}
+    [StructLayout(LayoutKind.Sequential)] struct CompositionData {public int Attribute;public IntPtr Data;public int Size;}
+    [DllImport("user32.dll")] [return:MarshalAs(UnmanagedType.Bool)] static extern bool SetWindowCompositionAttribute(IntPtr window,ref CompositionData data);
     IntPtr handle;
-    internal bool Acrylic;
+    string lastMaterialStatus="";
+    bool SetBlur(bool enabled){
+        // ACCENT_ENABLE_BLURBEHIND avoids desktop Acrylic's focus-dependent
+        // solid fallback. This compatibility API may be unavailable on a build.
+        var policy=new AccentPolicy{State=enabled?3:0};
+        IntPtr memory=Marshal.AllocHGlobal(Marshal.SizeOf(typeof(AccentPolicy)));
+        try{
+            Marshal.StructureToPtr(policy,memory,false);
+            var data=new CompositionData{Attribute=19,Data=memory,Size=Marshal.SizeOf(typeof(AccentPolicy))};
+            return SetWindowCompositionAttribute(handle,ref data);
+        }catch(EntryPointNotFoundException){return false;}
+        finally{Marshal.FreeHGlobal(memory);}
+    }
+    bool Acrylic;
     internal DockBackdrop(){
         Title="Clean11 dock material";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;
         ShowInTaskbar=false;ShowActivated=false;Topmost=true;Background=Brushes.Transparent;
@@ -25,10 +41,12 @@ sealed class DockBackdrop : Window {
     }
     internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass){
         Left=left;Top=top;Width=Math.Max(1,width);Height=Math.Max(1,height);
-        int type=glass?3:1;
-        Acrylic=glass&&DockNative.DwmSetWindowAttribute(handle,38,ref type,4)==0;
-        if(!glass)DockNative.DwmSetWindowAttribute(handle,38,ref type,4);
-        var margins=new Margins{Left=Acrylic?-1:0};DwmExtendFrameIntoClientArea(handle,ref margins);
+        int type=1;DockNative.DwmSetWindowAttribute(handle,38,ref type,4);
+        bool accepted=SetBlur(glass);Acrylic=glass&&accepted;
+        var margins=Acrylic?new Margins{Left=-1,Right=-1,Top=-1,Bottom=-1}:new Margins();
+        int frameResult=DwmExtendFrameIntoClientArea(handle,ref margins);
+        string status="Dock blur: requested="+glass+", accepted="+accepted+", frame="+frameResult;
+        if(status!=lastMaterialStatus){DockLog.Write(status);lastMaterialStatus=status;}
         int strength=60;try{strength=OverviewPreferences.Load().GlassStrength;}catch{}
         var tint=ActivityTheme.Brush("Surface","#23252A").Color;tint.A=(byte)Math.Round(204*(1-Math.Max(0,Math.Min(100,strength))/100.0));
         Background=Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
