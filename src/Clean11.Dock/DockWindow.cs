@@ -41,7 +41,16 @@ sealed class DockWindow : Window {
         State=state;Clean11Fluent.Apply(this);Title="Clean11 Dock";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;Background=Brushes.Transparent;ShowInTaskbar=Environment.CommandLine.Contains("--inspect-ui");ShowActivated=false;Topmost=true;FontFamily=new FontFamily("Segoe UI Variable, Segoe UI");Foreground=ActivityTheme.Brush("Text","#F5F5F5");
         var root=new Grid();backdrop=new Border{Background=ActivityTheme.Brush("DockSurface","#ED202329"),BorderBrush=ActivityTheme.Brush("Border","#505050"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.PanelRadius),VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(36,0,36,0)};root.Children.Add(backdrop);root.Children.Add(strip);Content=root;AllowDrop=true;
         SourceInitialized+=(s,e)=>{hwnd=new WindowInteropHelper(this).Handle;if(!Environment.CommandLine.Contains("--inspect-ui"))DockNative.NoActivate(this);dpi=DockNative.GetDpiForWindow(hwnd)/96.0;HwndSource.FromHwnd(hwnd).AddHook(Messages);Rebuild();};
-        MouseMove+=(s,e)=>Hover(e.GetPosition(strip));MouseLeave+=(s,e)=>{hoverIndex=-1;hoverDelay.Stop();SetMagnification(-10000);};
+        MouseMove+=(s,e)=>Hover(e.GetPosition(strip));MouseLeave+=(s,e)=>{
+            // Layered windows can lose mouse ownership to a tooltip or native
+            // backdrop. Only collapse when the pointer actually leaves the dock.
+            DockNative.Point cursor;
+            if(DockNative.GetCursorPos(out cursor)){
+                var point=PointFromScreen(new Point(cursor.X,cursor.Y));
+                if(point.X>=36&&point.X<=Width-36&&point.Y>=Height-backdrop.Height&&point.Y<=Height){Hover(point);return;}
+            }
+            hoverIndex=-1;hoverDelay.Stop();SetMagnification(-10000);
+        };
         PreviewMouseLeftButtonDown+=(s,e)=>{dragStart=e.GetPosition(this);dragTile=tiles.FirstOrDefault(t=>t.Button.IsMouseOver&&t.Group!=null&&t.Group.Pin!=null);};
         PreviewMouseMove+=(s,e)=>{if(e.LeftButton==MouseButtonState.Pressed&&dragTile!=null&&!dragging&&(e.GetPosition(this)-dragStart).Length>8){dragging=true;CloseFlyout();try{DragDrop.DoDragDrop(dragTile.Button,new DataObject("Clean11.Pin",dragTile.Group.Pin.Id),DragDropEffects.Move);}finally{dragging=false;dragTile=null;}}};
         PreviewMouseLeftButtonUp+=(s,e)=>dragTile=null;
@@ -145,7 +154,9 @@ sealed class DockWindow : Window {
         glass=FrostedMaterial.Enabled(glass);
         if(glassBackdrop==null)glassBackdrop=new DockBackdrop();
         glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,glass);
-        backdrop.Background=Brushes.Transparent;backdrop.BorderThickness=new Thickness(0);
+        // Alpha zero is a native hit-test hole in a layered window. Retain one
+        // alpha step across the whole bar so gaps receive continuous MouseMove.
+        backdrop.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));backdrop.BorderThickness=new Thickness(0);
     }
     internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
     internal void DisposeDock(){if(disposed)return;disposed=true;if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
