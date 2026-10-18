@@ -67,3 +67,7 @@ Icon-only refinement: individual icon surfaces and borders are removed. All icon
 ### Window preview grid
 
 Each open window has its own live preview card. Cards flow left to right and then onto the next row. In Clean11 Settings > Dock, **Window previews per row (maximum)** selects 1-5 columns (default 3). Apply saves the preference. Narrow displays reduce the column count automatically; tall grids scroll. The popup uses a single native outer border and rounded corner treatment.
+
+### Shared glass material
+
+Clean11 Settings > Overview & search controls frosted glass for search, dock, and preview popups. Glass visibility (0–100%) adjusts the dark tint over the cached blurred wallpaper, not live application transparency. Save applies to the dock immediately and search/previews on their next opening. High contrast, disabled Windows transparency, or an unavailable wallpaper use the solid fallback.

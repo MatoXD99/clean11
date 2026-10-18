@@ -76,7 +76,7 @@ sealed class DockWindow : Window {
         if(State.ShowBackgroundApps)AddUtility("Background apps","ChevronUp24",()=>{CloseFlyout();bool bridged=Lease.ShowTray();if(!bridged){HideDock(true);DockLog.Write("Native notification area revealed for 15 seconds.");}},size);
         if(State.ShowRecycleBin)AddUtility("Recycle Bin","Delete24",()=>Open("shell:RecycleBinFolder"),size);
 
-        backdrop.Width=baseWidth;Position();UpdateVisibility();
+        backdrop.Width=baseWidth;Position();RefreshGlass();UpdateVisibility();
     }
     DockTile Tile(string label,double size){var button=Clean11Fluent.Button("",()=>{},false);Clean11Fluent.Quiet(button);button.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse(@"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='Button'><Border Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border></ControlTemplate>");button.Appearance=Ui.ControlAppearance.Transparent;button.BorderThickness=new Thickness(0);button.Padding=new Thickness(0);button.Width=slot;button.Height=size;button.Focusable=false;button.ToolTip=label;ToolTipService.SetInitialShowDelay(button,600);button.RenderTransform=new TranslateTransform();
         var tile=new DockTile{Button=button,Shift=(TranslateTransform)button.RenderTransform,Scale=new ScaleTransform(1,1),Center=52+tiles.Count*slot+slot/2+(divider!=null?14:0)};
@@ -138,6 +138,12 @@ sealed class DockWindow : Window {
     void MovePin(DockPin pin,int delta){int index=State.Pins.IndexOf(pin),next=Math.Max(0,Math.Min(State.Pins.Count-1,index+delta));State.Pins.RemoveAt(index);State.Pins.Insert(next,pin);State.Save();Rebuild();}
     ContextMenu SettingsMenu(){var menu=new ContextMenu();menu.Items.Add(Item("Clean11 Settings",ShowSettings));menu.Items.Add(Item("Open Task Manager",()=>Open("taskmgr.exe")));menu.Items.Add(Item("Background apps",()=>Lease.ShowTray()));menu.Items.Add(new Separator());menu.Items.Add(Item("Exit dock and restore previous bars",()=>Application.Current.Shutdown()));return menu;}
     internal void ShowSettings(){CloseFlyout();if(settings!=null){settings.Activate();return;}settings=new DockSettings(this);settings.Closed+=(s,e)=>settings=null;settings.Show();settings.Activate();}
+    internal void RefreshGlass(){
+        if(hwnd==IntPtr.Zero)return;
+        bool glass=true;try{glass=OverviewPreferences.Load().Glass;}catch{}
+        var bounds=new System.Drawing.Rectangle((int)((Left+36)*dpi),(int)((Top+Height-backdrop.Height)*dpi),(int)(baseWidth*dpi),(int)(backdrop.Height*dpi));
+        backdrop.Background=FrostedMaterial.PanelBrush(bounds,Screen.Bounds,glass);
+    }
     internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
     internal void DisposeDock(){if(disposed)return;disposed=true;pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
 }

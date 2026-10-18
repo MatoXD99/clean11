@@ -127,7 +127,7 @@ sealed class SpotlightPanel : Window {
         bool glass=FrostedMaterial.Enabled(overview.SpotlightGlass);
         if(hwnd!=IntPtr.Zero){int none=1;DwmSetWindowAttribute(hwnd,38,ref none,4);var margins=new Margins();DwmExtendFrameIntoClientArea(hwnd,ref margins);}
         materialScreen=Forms.Screen.FromHandle(overview.Handle).Bounds;material=glass?FrostedMaterial.Create(materialScreen):null;
-        surface.Background=material!=null?(Brush)material:(Brush)FindResource("Surface");root.Background=material!=null?(Brush)FindResource("GlassTint"):Brushes.Transparent;
+        surface.Background=material!=null?(Brush)material:(Brush)FindResource("Surface");root.Background=material!=null?FrostedMaterial.Tint():Brushes.Transparent;
         FrostedMaterial.Position(material,Current(),materialScreen);
         if(hwnd!=IntPtr.Zero)Native.Log("Spotlight material: per-pixel alpha=True, wallpaper frost="+(material!=null)+", rectangular DWM backdrop=False");
     }

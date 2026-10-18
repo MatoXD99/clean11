@@ -105,7 +105,7 @@ partial class Overview {
         if(key=="reduced")state.ReducedMotion=value!=0;
         if(key=="glass")state.Glass=value!=0;
         if(key=="game")state.GameFriendly=value!=0;
-        new OverviewPreferences{MotionDuration=state.MotionDuration,PreviewColumns=state.PreviewColumns,ReducedMotion=state.ReducedMotion,Glass=state.Glass,LiveGamePreviews=!state.GameFriendly}.Save();
+        new OverviewPreferences{GlassStrength=OverviewPreferences.Load().GlassStrength,MotionDuration=state.MotionDuration,PreviewColumns=state.PreviewColumns,ReducedMotion=state.ReducedMotion,Glass=state.Glass,LiveGamePreviews=!state.GameFriendly}.Save();
         reducedMotion=state.ReducedMotion||!SystemInformation.UIEffectsEnabled;SaveState();LayoutCards();UpdateThumbnails(1);Redraw();
     }
     internal void SpotlightPower(){EndOverview(DesktopActions.PowerMenu);}

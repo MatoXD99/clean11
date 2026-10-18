@@ -6,7 +6,7 @@ using System.Web.Script.Serialization;
 using System.Diagnostics;
 
 sealed class OverviewPreferences {
-    public int MotionDuration=200,PreviewColumns=4;
+    public int MotionDuration=200,PreviewColumns=4,GlassStrength=60;
     public bool ReducedMotion=false,Glass=true,LiveGamePreviews=false;
     static string Root {get{return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Clean11","Overview");}}
     static string FileName {get{return Path.Combine(Root,"preferences.json");}}
@@ -26,7 +26,7 @@ sealed class OverviewPreferences {
                 if(values.ContainsKey("GameFriendly"))p.LiveGamePreviews=!Convert.ToBoolean(values["GameFriendly"]);
             }
         }
-        p.MotionDuration=Math.Max(120,Math.Min(600,p.MotionDuration));p.PreviewColumns=Math.Max(3,Math.Min(5,p.PreviewColumns));return p;
+        p.GlassStrength=Math.Max(0,Math.Min(100,p.GlassStrength));p.MotionDuration=Math.Max(120,Math.Min(600,p.MotionDuration));p.PreviewColumns=Math.Max(3,Math.Min(5,p.PreviewColumns));return p;
     }
     internal void Save(){Directory.CreateDirectory(Root);string temp=FileName+".tmp";File.WriteAllText(temp,new JavaScriptSerializer().Serialize(this));if(File.Exists(FileName))File.Replace(temp,FileName,FileName+".bak");else File.Move(temp,FileName);}
     internal static void AddPortable(string path){

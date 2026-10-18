@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -50,10 +50,10 @@ static class FrostedMaterial {
             string next=screen.ToString()+"|"+path+"|"+(File.Exists(path)?File.GetLastWriteTimeUtc(path).Ticks:0)+"|"+style+"|"+tile;
             if(next!=signature){
                 wallpaper=Load(path,screen,style,tile);signature=next;
-                Native.Log("Frosted wallpaper material cached; screen="+screen.Width+"x"+screen.Height+", available="+(wallpaper!=null));
+                Trace.WriteLine("Frosted wallpaper material cached; screen="+screen.Width+"x"+screen.Height+", available="+(wallpaper!=null));
             }
             return wallpaper==null?null:new ImageBrush(wallpaper){Stretch=Stretch.Fill,ViewboxUnits=BrushMappingMode.RelativeToBoundingBox,TileMode=TileMode.None};
-        }catch(Exception error){Native.Log("Frosted wallpaper fallback: "+error.GetType().Name);return null;}
+        }catch(Exception error){Trace.WriteLine("Frosted wallpaper fallback: "+error.GetType().Name);return null;}
     }
     static BitmapSource Load(string path,Drawing.Rectangle screen,string style,string tile){
         if(!File.Exists(path))return null;
@@ -87,9 +87,15 @@ static class FrostedMaterial {
         if(!preference||SystemParameters.HighContrast)return false;
         try{using(var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))return key==null||Convert.ToInt32(key.GetValue("EnableTransparency",1))!=0;}catch{return true;}
     }
+    internal static Brush Tint(){
+        int strength=60;try{strength=OverviewPreferences.Load().GlassStrength;}catch{}
+        var color=ActivityTheme.Brush("Surface","#23252A").Color;
+        color.A=(byte)Math.Round(255*(.94-.0064*Math.Max(0,Math.Min(100,strength))));
+        var brush=new SolidColorBrush(color);brush.Freeze();return brush;
+    }
     internal static Brush PanelBrush(Drawing.Rectangle bounds,Drawing.Rectangle screen,bool glass){
         var image=Enabled(glass)?Create(screen):null;if(image==null)return ActivityTheme.Brush("Surface","#202632");Position(image,bounds,screen);
-        var drawing=new DrawingGroup();using(var dc=drawing.Open()){dc.DrawRectangle(image,null,new Rect(0,0,1,1));dc.DrawRectangle(ActivityTheme.Brush("GlassTint","#B0181E29"),null,new Rect(0,0,1,1));}var result=new DrawingBrush(drawing){Stretch=Stretch.Fill};result.Freeze();return result;
+        var drawing=new DrawingGroup();using(var dc=drawing.Open()){dc.DrawRectangle(image,null,new Rect(0,0,1,1));dc.DrawRectangle(Tint(),null,new Rect(0,0,1,1));}var result=new DrawingBrush(drawing){Stretch=Stretch.Fill};result.Freeze();return result;
     }
     internal static void StyleMenu(System.Windows.Controls.ContextMenu menu,bool glass){
         Clean11Fluent.Menu(menu);

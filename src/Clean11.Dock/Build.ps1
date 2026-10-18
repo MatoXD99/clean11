@@ -14,6 +14,7 @@ $sources = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' | ForEach-O
 $sources += Join-Path $shared 'Clean11Fluent.cs'
 $sources += Join-Path $shared 'ActivityTheme.cs'
 $sources += Join-Path $shared 'OverviewPreferences.cs'
+$sources += Join-Path $shared 'FrostedMaterial.cs'
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:DockProgram "/win32manifest:$PSScriptRoot/app.manifest" "/out:$out/Clean11.Dock.exe" @references @sources
 if($LASTEXITCODE -ne 0){throw 'Clean11 Dock build failed'}
 
