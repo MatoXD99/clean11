@@ -11,7 +11,7 @@ using System.Windows.Media;
 sealed class DockFlyout : Window {
     internal string GroupKey;
     readonly DockWindow dock; readonly Point anchor; readonly StackPanel body=new StackPanel();
-    readonly List<IntPtr> thumbnails=new List<IntPtr>(); bool closed;
+    readonly List<IntPtr> thumbnails=new List<IntPtr>(); volatile bool closed; DockBackdrop folderBackdrop; bool folderMaterial;
     DockFlyout(DockWindow owner,Point point){
         dock=owner;anchor=point;Clean11Fluent.Apply(this);Title="Clean11 dock preview";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=false;ShowActivated=false;Topmost=true;Width=340;SizeToContent=SizeToContent.Height;MaxHeight=520;
         Background=ActivityTheme.Brush("Surface","#202020");Foreground=new SolidColorBrush(FrostedMaterial.Ink(false));
@@ -19,9 +19,15 @@ sealed class DockFlyout : Window {
         // border had a different radius and left a square wedge at each corner.
         Content=new Border{Padding=new Thickness(14),Background=Background,Child=body};
         SourceInitialized+=(s,e)=>{DockNative.NoActivate(this);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);var edge=ActivityTheme.Hover;int borderColor=edge.R|(edge.G<<8)|(edge.B<<16);DockNative.DwmSetWindowAttribute(h,34,ref borderColor,4);};
-        ContentRendered+=(s,e)=>Place();Closed+=(s,e)=>{closed=true;foreach(var h in thumbnails)DockNative.DwmUnregisterThumbnail(h);thumbnails.Clear();};
+        ContentRendered+=(s,e)=>Place();Closed+=(s,e)=>{closed=true;if(folderBackdrop!=null)folderBackdrop.Close();foreach(var h in thumbnails)DockNative.DwmUnregisterThumbnail(h);thumbnails.Clear();};
     }
     void Place(){if(closed)return;var handle=new WindowInteropHelper(this).Handle;if(handle==IntPtr.Zero)return;double scale=Math.Max(96,DockNative.GetDpiForWindow(handle))/96.0;if(Double.IsNaN(anchor.X)||Double.IsNaN(anchor.Y)||Double.IsInfinity(anchor.X)||Double.IsInfinity(anchor.Y))return;var b=dock.Screen.WorkingArea;Left=Math.Max(b.Left/scale+8,Math.Min((b.Right/scale)-ActualWidth-8,anchor.X/scale-ActualWidth/2));Top=Math.Max(b.Top/scale+8,anchor.Y/scale-ActualHeight-8);
+        if(folderMaterial){
+            var prefs=OverviewPreferences.Load();
+            if(folderBackdrop==null)folderBackdrop=new DockBackdrop();
+            folderBackdrop.Update(handle,Left,Top,ActualWidth,ActualHeight,scale,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);
+            return;
+        }
         bool glass=true;try{glass=OverviewPreferences.Load().Glass;}catch{}
         Background=FrostedMaterial.PanelBrush(new System.Drawing.Rectangle((int)(Left*scale),(int)(Top*scale),(int)(ActualWidth*scale),(int)(ActualHeight*scale)),dock.Screen.Bounds,glass);
         ((Border)Content).Background=Background;
@@ -108,10 +114,59 @@ sealed class DockFlyout : Window {
             preview.Placeholder.Visibility=result==0&&props.Visible?Visibility.Hidden:Visibility.Visible;
         }
     }
+    sealed class FolderEntry {
+        internal string Path,Name,Detail; internal DateTime Modified;
+    }
+    static string FileSize(long size){
+        if(size<1024)return size+" B";
+        if(size<1048576)return (size/1024.0).ToString("0.#")+" KB";
+        if(size<1073741824)return (size/1048576.0).ToString("0.#")+" MB";
+        return (size/1073741824.0).ToString("0.#")+" GB";
+    }
     internal DockFlyout(DockWindow owner,string path,Point point):this(owner,point){
-        body.Children.Add(new TextBlock{Text=System.IO.Path.GetFileName(path),FontSize=16,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,10)});
-        var list=new StackPanel();body.Children.Add(new ScrollViewer{Content=list,MaxHeight=350,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});var status=new TextBlock{Text="Loading folder…",Margin=new Thickness(8)};list.Children.Add(status);
-        body.Children.Add(Clean11Fluent.Button("Open folder",()=>{dock.Open(path);dock.CloseFlyout();},false));
-        ThreadPool.QueueUserWorkItem(_=>{string[] items;try{items=Directory.EnumerateFileSystemEntries(path).Take(200).OrderByDescending(Directory.Exists).ThenBy(System.IO.Path.GetFileName,StringComparer.CurrentCultureIgnoreCase).Take(60).ToArray();}catch{items=null;}Dispatcher.BeginInvoke((Action)(()=>{if(closed)return;list.Children.Clear();if(items==null||items.Length==0)list.Children.Add(new TextBlock{Text=items==null?"Folder is unavailable.":"This folder is empty.",Margin=new Thickness(8)});else foreach(string entry in items){string target=entry;var button=Clean11Fluent.Button(System.IO.Path.GetFileName(entry),()=>{dock.Open(target);dock.CloseFlyout();},false);Clean11Fluent.Quiet(button);button.HorizontalContentAlignment=HorizontalAlignment.Left;button.Margin=new Thickness(0,2,0,2);list.Children.Add(button);}UpdateLayout();Place();}));});
+        folderMaterial=true;AllowsTransparency=true;Background=Brushes.Transparent;Width=440;MaxHeight=620;
+        var outer=(Border)Content;outer.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));outer.BorderBrush=FrostedMaterial.Edge();outer.BorderThickness=new Thickness(1);outer.CornerRadius=new CornerRadius(8);outer.Padding=new Thickness(16);
+        var header=new DockPanel{Margin=new Thickness(2,0,2,14)};
+        var open=Clean11Fluent.Button("Open folder",()=>{dock.Open(path);dock.CloseFlyout();},false);Clean11Fluent.Quiet(open);open.Foreground=Foreground;open.Padding=new Thickness(10,6,10,6);DockPanel.SetDock(open,Dock.Right);header.Children.Add(open);
+        var heading=new StackPanel();heading.Children.Add(new TextBlock{Text=System.IO.Path.GetFileName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar)),FontSize=18,FontWeight=FontWeights.SemiBold});
+        var subtitle=new TextBlock{Text="Recent files",FontSize=12,Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),Margin=new Thickness(0,4,0,0)};heading.Children.Add(subtitle);header.Children.Add(heading);body.Children.Add(header);
+        var list=new StackPanel();var scroll=new ScrollViewer{Content=list,MaxHeight=480,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};body.Children.Add(scroll);
+        list.Children.Add(new TextBlock{Text="Loading recent files…",Margin=new Thickness(8,20,8,20),Foreground=new SolidColorBrush(FrostedMaterial.Ink(true))});
+        SourceInitialized+=(s,e)=>{double scale=Math.Max(96,DockNative.GetDpiForWindow(new WindowInteropHelper(this).Handle))/96.0;Width=Math.Min(440,dock.Screen.WorkingArea.Width/scale-16);MaxHeight=Math.Max(160,Math.Min(620,(anchor.Y-dock.Screen.WorkingArea.Top)/scale-24));scroll.MaxHeight=Math.Max(60,MaxHeight-100);};
+        var worker=new Thread(()=>{
+            try{
+            var entries=new List<FolderEntry>();bool failed=false;
+            try{foreach(string entry in Directory.EnumerateFileSystemEntries(path)){
+                if(closed)return;
+                try{var info=new FileInfo(entry);var attributes=info.Attributes;if((attributes&(FileAttributes.Hidden|FileAttributes.System))!=0)continue;
+                    bool directory=(attributes&FileAttributes.Directory)!=0;
+                    string type=directory?"Folder":String.IsNullOrEmpty(info.Extension)?"File":info.Extension.TrimStart('.').ToUpperInvariant()+" file";
+                    entries.Add(new FolderEntry{Path=entry,Name=info.Name,Modified=info.LastWriteTime,Detail=type+(directory?"":" · "+FileSize(info.Length))+" · "+info.LastWriteTime.ToString("d MMM yyyy")});
+                }catch{}
+            }}catch{failed=true;}
+            var recent=entries.OrderByDescending(x=>x.Modified).Take(40).ToArray();
+            var pictures=new List<Image>();
+            if(closed)return;
+            Dispatcher.Invoke((Action)(()=>{
+                if(closed)return;list.Children.Clear();subtitle.Text=failed?"Folder unavailable":entries.Count==0?"No files yet":"Newest first · "+(entries.Count>40?"40 of ":"")+entries.Count+" items";
+                if(recent.Length==0)list.Children.Add(new TextBlock{Text=failed?"This folder could not be opened.":"Your downloaded files will appear here.",TextWrapping=TextWrapping.Wrap,Margin=new Thickness(8,20,8,20),Foreground=new SolidColorBrush(FrostedMaterial.Ink(true))});
+                foreach(var entry in recent){
+                    var item=entry;var row=new Grid();row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(64)});row.ColumnDefinitions.Add(new ColumnDefinition());
+                    var picture=new Image{Width=48,Height=48,Stretch=Stretch.Uniform};pictures.Add(picture);
+                    var art=new Border{Width=56,Height=56,CornerRadius=new CornerRadius(8),Background=new SolidColorBrush(Color.FromArgb(18,128,152,176)),Child=picture,HorizontalAlignment=HorizontalAlignment.Left};row.Children.Add(art);
+                    var labels=new StackPanel{VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,4,0)};
+                    labels.Children.Add(new TextBlock{Text=item.Name,FontSize=13,FontWeight=FontWeights.SemiBold,Foreground=new SolidColorBrush(FrostedMaterial.Ink(false)),TextTrimming=TextTrimming.CharacterEllipsis});
+                    labels.Children.Add(new TextBlock{Text=item.Detail,FontSize=11,Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),Margin=new Thickness(0,5,0,0),TextTrimming=TextTrimming.CharacterEllipsis});Grid.SetColumn(labels,1);row.Children.Add(labels);
+                    var button=Clean11Fluent.Button("",()=>{dock.Open(item.Path);dock.CloseFlyout();},false);Clean11Fluent.Quiet(button);button.Content=row;button.HorizontalContentAlignment=HorizontalAlignment.Stretch;button.HorizontalAlignment=HorizontalAlignment.Stretch;button.Padding=new Thickness(8);button.Margin=new Thickness(0,0,0,4);button.ToolTip=item.Name+"\n"+item.Detail;System.Windows.Automation.AutomationProperties.SetName(button,item.Name);list.Children.Add(button);
+                }
+                UpdateLayout();Place();
+            }));
+            for(int i=0;i<recent.Length&&!closed;i++){
+                var image=DockNative.FilePreview(recent[i].Path);int index=i;
+                if(closed)return;
+                Dispatcher.BeginInvoke((Action)(()=>{if(!closed&&index<pictures.Count)pictures[index].Source=image;}));
+            }
+            }catch{if(!closed)DockLog.Write("Folder preview loading was interrupted.");}
+        });worker.IsBackground=true;worker.SetApartmentState(ApartmentState.STA);worker.Start();
     }
 }
