@@ -678,7 +678,7 @@ partial class Overview : Form {
     void BeginOverview() {
         if(rendering)return;
         try {
-            LoadUnifiedPreferences();HideSpotlight();previewOpacity=255;SettingsCatalog.Refresh(false);
+            LoadUnifiedPreferences();HideSpotlight();RecoverSpotlight();previewOpacity=255;SettingsCatalog.Refresh(false);
             previous=Native.GetForegroundWindow();desktop=Screen.FromPoint(Cursor.Position).Bounds;
             Bounds=desktop;scale=Math.Max(1,Native.GetDpiForWindow(Handle)/96f);
             reducedMotion=state.ReducedMotion||!SystemInformation.UIEffectsEnabled;
@@ -820,7 +820,8 @@ partial class Overview : Form {
         Native.Log("Entrance complete; rendered ticks="+frames+", DWM updates ms="+(int)thumbnailMs+", paint ms="+(int)paintMs);
     }
     void EndOverview(Action next) {
-        if(!Visible||closing){HideSpotlight();return;}
+        if(closing){if(next!=null)afterClose+=next;return;}
+        if(!Visible){HideSpotlight();if(next!=null)next();return;}
         StopFocusHandoff();if(openingMotion)FinishEntrance(false);
         closing=true;
         HideSpotlight();

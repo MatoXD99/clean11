@@ -122,6 +122,12 @@ partial class Overview {
         string action=command=="Unpin"||command=="Pin to favorites"?"pin":command=="Open file location"?"location":command=="Copy path"?"copy":"admin";
         ShowResultMenu(index,Point.Empty);int found=resultMenuItems.FindIndex(item=>item.Command==action);if(found>=0)InvokeResultMenu(found);else CloseResultMenu();SyncSpotlightResults();
     }
+    void RecoverSpotlight(){
+        if(!spotlightUnavailable)return;
+        var failed=spotlight;spotlight=null;spotlightUnavailable=false;
+        if(failed!=null)try{failed.Shutdown();}catch{}
+        Native.Log("Retrying Spotlight after a previous initialization failure");
+    }
     void HideSpotlight(){returningFromSpotlight=false;spotlightChromeCleared=false;settingsSearchDelay.Stop();settingSearchGeneration++;settingsPending=false;if(spotlight!=null)spotlight.HidePanel();}
     void DisposeSpotlight(){settingsSearchDelay.Stop();settingsSearchDelay.Dispose();if(settingsCatalogChanged!=null)SettingsCatalog.Changed-=settingsCatalogChanged;if(spotlight!=null){spotlight.Shutdown();spotlight=null;}}
 }

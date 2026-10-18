@@ -123,8 +123,17 @@ sealed class SpotlightPanel : Window {
         dismissTimer.Tick+=(s,e)=>{dismissTimer.Stop();if(!IsVisible||dead)return;IntPtr focused=Native.GetForegroundWindow();if(focused==IntPtr.Zero)return;uint pid;Native.GetWindowThreadProcessId(focused,out pid);if(pid==(uint)Process.GetCurrentProcess().Id)return;IntPtr focusOwner=focused;for(int depth=0;depth<12&&focusOwner!=IntPtr.Zero;depth++){if(focusOwner==hwnd)return;focusOwner=Native.GetWindow(focusOwner,4);}overview.DismissSpotlightFocusLoss();};
     }
     Ui.Button Button(string text,Action action){return Clean11Fluent.Button(text,action,false);}
+    void RefreshInk(DependencyObject node,Brush oldText,Brush oldMuted){
+        var control=node as Control;var text=node as TextBlock;
+        if(control!=null){if(Object.ReferenceEquals(control.Foreground,oldText))control.Foreground=TextBrush;else if(Object.ReferenceEquals(control.Foreground,oldMuted))control.Foreground=Muted;}
+        if(text!=null){if(Object.ReferenceEquals(text.Foreground,oldText))text.Foreground=TextBrush;else if(Object.ReferenceEquals(text.Foreground,oldMuted))text.Foreground=Muted;}
+        for(int i=0;i<VisualTreeHelper.GetChildrenCount(node);i++)RefreshInk(VisualTreeHelper.GetChild(node,i),oldText,oldMuted);
+    }
     internal void ApplyMaterial(){
-        TextBrush.Color=FrostedMaterial.Ink(false);Muted.Color=FrostedMaterial.Ink(true);
+        // Styles may freeze their brushes. Replace resources rather than mutate them.
+        var oldText=TextBrush;var oldMuted=Muted;
+        TextBrush=new SolidColorBrush(FrostedMaterial.Ink(false));Muted=new SolidColorBrush(FrostedMaterial.Ink(true));
+        RefreshInk(this,oldText,oldMuted);
         Resources["Text"]=TextBrush;Resources["Muted"]=Muted;
         Resources["Hover"]=new SolidColorBrush(Color.FromArgb(38,115,171,207));
         Resources["Selected"]=new SolidColorBrush(Color.FromArgb(85,84,157,204));
