@@ -153,8 +153,17 @@ sealed class DockWindow : Window {
             CloseFlyout();
             if(settings==null){var created=new DockSettings(this);created.Closed+=(s,e)=>{if(settings==created)settings=null;};settings=created;}
             if(settings.WindowState==WindowState.Minimized)settings.WindowState=WindowState.Normal;
-            settings.Show();settings.Activate();settings.Focus();
-            DockLog.Write("Settings window shown.");
+            settings.Show();
+            var settingsHandle=new WindowInteropHelper(settings).Handle;
+            DockNative.Rect bounds;
+            if(DockNative.GetWindowRect(settingsHandle,out bounds)){
+                bool onScreen=Forms.Screen.AllScreens.Any(screen=>System.Drawing.Rectangle.Intersect(screen.WorkingArea,new System.Drawing.Rectangle(bounds.Left,bounds.Top,bounds.Width,bounds.Height)).Width>=160&&System.Drawing.Rectangle.Intersect(screen.WorkingArea,new System.Drawing.Rectangle(bounds.Left,bounds.Top,bounds.Width,bounds.Height)).Height>=100);
+                if(!onScreen){var work=Screen.WorkingArea;double scale=Math.Max(96,DockNative.GetDpiForWindow(settingsHandle))/96.0;settings.Left=(work.Left+Math.Max(0,(work.Width-settings.ActualWidth*scale)/2))/scale;settings.Top=(work.Top+Math.Max(0,(work.Height-settings.ActualHeight*scale)/2))/scale;}
+            }
+            // Promote once for a requested launch; Settings must not stay above other apps.
+            settings.Topmost=true;settings.Topmost=false;
+            bool activated=settings.Activate();DockNative.SetForegroundWindow(settingsHandle);settings.Focus();
+            DockLog.Write("Settings launch: visible="+settings.IsVisible+", state="+settings.WindowState+", activated="+activated+", foreground="+(DockNative.GetForegroundWindow()==settingsHandle));
         }catch(Exception error){var failed=settings;settings=null;if(failed!=null)try{failed.Close();}catch{}DockLog.Write("Settings launch failed: "+error);}
     }
     internal void RefreshGlass(){

@@ -63,13 +63,19 @@ sealed class DockAppBar : Forms.NativeWindow,IDisposable {
 }
 
 static class DockProgram {
+    [DllImport("user32.dll")]static extern bool AllowSetForegroundWindow(uint processId);
+    static void GrantSettingsForeground(){
+        foreach(var process in Process.GetProcessesByName("Clean11.Dock"))using(process){
+            try{if(process.Id!=Process.GetCurrentProcess().Id&&String.Equals(process.MainModule.FileName,Executable,StringComparison.OrdinalIgnoreCase))AllowSetForegroundWindow((uint)process.Id);}catch{}
+        }
+    }
     internal static string Executable{get{return System.Reflection.Assembly.GetExecutingAssembly().Location;}}
     internal static string StopName{get{return "Local\\Clean11DockStop";}}
     [STAThread]static void Main(string[] args){
         if(args.Length>1&&args[0]=="--watch"){int pid;if(Int32.TryParse(args[1],out pid)){try{using(var parent=Process.GetProcessById(pid))parent.WaitForExit();}catch{}using(var guard=new Mutex(false,"Local\\Clean11.Dock")){bool acquired=false;try{acquired=guard.WaitOne(0);}catch(AbandonedMutexException){acquired=true;}if(acquired){ShellLease.Recover();guard.ReleaseMutex();}}}return;}
         if(args.Contains("--shutdown")){try{using(var signal=EventWaitHandle.OpenExisting(StopName))signal.Set();}catch{}return;}
         bool created;using(var mutex=new Mutex(true,"Local\\Clean11.Dock",out created)){
-            if(!created){if(args.Contains("--settings")){for(int attempt=0;attempt<30;attempt++){try{using(var signal=EventWaitHandle.OpenExisting("Local\\Clean11SettingsOpen"))signal.Set();break;}catch(WaitHandleCannotBeOpenedException){Thread.Sleep(100);}catch(Exception error){DockLog.Write("Settings signal failed: "+error.GetType().Name);break;}}}return;}ShellLease.Recover();
+            if(!created){if(args.Contains("--settings")){GrantSettingsForeground();for(int attempt=0;attempt<30;attempt++){try{using(var signal=EventWaitHandle.OpenExisting("Local\\Clean11SettingsOpen"))signal.Set();break;}catch(WaitHandleCannotBeOpenedException){Thread.Sleep(100);}catch(Exception error){DockLog.Write("Settings signal failed: "+error.GetType().Name);break;}}}return;}ShellLease.Recover();
             using(var stop=new EventWaitHandle(false,EventResetMode.ManualReset,StopName)){
                 Clean11Fluent.Ensure();var application=System.Windows.Application.Current;application.ShutdownMode=System.Windows.ShutdownMode.OnExplicitShutdown;
                 var state=DockState.Load();DockSettings.SetStartup(state.Startup);
