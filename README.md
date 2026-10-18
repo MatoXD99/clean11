@@ -2,7 +2,7 @@
 
 A cohesive desktop experience for Windows 11: fast search, window overview, a floating dock, a top bar, a customizable desktop, and one Settings app.
 
-**Status: overview/search prototype.** The repository now contains the existing overview/search application redesigned with WPF UI, alongside the full desktop-suite blueprint. The custom Dock, Top Bar, Desktop, and installer remain planned work.
+**Status: overview/search and dock prototypes.** The repository contains the overview/search application and a native bottom dock using WPF UI, alongside the full desktop-suite blueprint. Top Bar, Desktop, and EXE/MSI packaging remain planned work.
 
 ## The experience
 
@@ -35,7 +35,7 @@ The project license is a decision for the project owner before code publication.
 
 ## Current implementation
 
-See [building the overview prototype](docs/BUILDING.md) and [WPF UI redesign notes](docs/WPF-UI-REDESIGN.md).
+See [building the overview prototype](docs/BUILDING.md), [WPF UI redesign notes](docs/WPF-UI-REDESIGN.md), and [Dock features, installation, recovery, and limitations](docs/DOCK.md).
 
 The current prototype uses C# and WPF UI 4.3.0 with the existing .NET Framework backend. Search, favorites, window previews, shortcuts, and launch behavior are retained. It is not yet the complete desktop suite described by the roadmap.
 
