@@ -39,7 +39,7 @@ sealed class DockBackdrop : Window {
         };
         new WindowInteropHelper(this).EnsureHandle();
     }
-    internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass){
+    internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
         Left=left;Top=top;Width=Math.Max(1,width);Height=Math.Max(1,height);
         int type=1;DockNative.DwmSetWindowAttribute(handle,38,ref type,4);
         bool accepted=SetBlur(glass);Acrylic=glass&&accepted;
@@ -47,7 +47,6 @@ sealed class DockBackdrop : Window {
         int frameResult=DwmExtendFrameIntoClientArea(handle,ref margins);
         string status="Dock blur: requested="+glass+", accepted="+accepted+", frame="+frameResult;
         if(status!=lastMaterialStatus){DockLog.Write(status);lastMaterialStatus=status;}
-        int strength=60;try{strength=OverviewPreferences.Load().GlassStrength;}catch{}
         var tint=ActivityTheme.Brush("Surface","#23252A").Color;tint.A=(byte)Math.Round(204*(1-Math.Max(0,Math.Min(100,strength))/100.0));
         Background=Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
         if(visible){if(!IsVisible)Show();DockNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);}

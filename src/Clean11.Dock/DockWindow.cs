@@ -153,7 +153,7 @@ sealed class DockWindow : Window {
         bool glass=true;try{glass=OverviewPreferences.Load().Glass;}catch{}
         glass=FrostedMaterial.Enabled(glass);
         if(glassBackdrop==null)glassBackdrop=new DockBackdrop();
-        glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,glass);
+        glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,glass,State.GlassVisibility);
         // Alpha zero is a native hit-test hole in a layered window. Retain one
         // alpha step across the whole bar so gaps receive continuous MouseMove.
         backdrop.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));backdrop.BorderThickness=new Thickness(0);
