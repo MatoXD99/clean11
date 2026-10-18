@@ -67,31 +67,31 @@ sealed class DockWindow : Window {
         if(disposed)return;CloseFlyout();StopMotion();strip.Children.Clear();tiles.Clear();divider=null;hoverIndex=-1;groups=Group(windows);
         var screen=Screen;double available=screen.Bounds.Width/dpi-100;int count=groups.Count+1+(State.ShowDownloads?1:0)+(State.ShowRecycleBin?1:0)+(State.ShowBackgroundApps?1:0);
         int capacity=Math.Max(1,(int)(available/36)- (count-groups.Count)-1);var visibleGroups=groups.Take(capacity).ToList();var overflow=groups.Skip(capacity).ToList();count=visibleGroups.Count+(count-groups.Count)+(overflow.Count>0?1:0);
-        slot=Math.Max(28,Math.Min(State.IconSize+12,available/Math.Max(1,count)));double size=Math.Min(State.IconSize,slot-10);baseWidth=count*slot+46;Width=baseWidth+72;Height=Math.Max(94,size*State.Magnification+36);backdrop.Height=size+34;
+        slot=Math.Max(28,Math.Min(State.IconSize+12,available/Math.Max(1,count)));double size=Math.Min(State.IconSize,slot-10);baseWidth=count*slot+46;Width=baseWidth+72;Height=Math.Max(94,size*State.Magnification+36);backdrop.Height=size+24;
         AddUtility("Overview","Apps24",()=>Overview(),size);
         foreach(var group in visibleGroups)AddGroup(group,size);
         if(overflow.Count>0)AddUtility("More apps","MoreHorizontal24",()=>{var menu=new ContextMenu();foreach(var item in overflow){var group=item;menu.Items.Add(Item(group.Name,()=>{if(group.Windows.Count>0){CloseFlyout();flyout=new DockFlyout(this,group,FolderAnchor());flyout.Show();}else Launch(group);}));}OpenMenu(menu,this);},size);
-        dividerX=52+tiles.Count*slot+7;divider=new Border{Width=1,Height=26,Background=ActivityTheme.Brush("Divider","#18FFFFFF"),IsHitTestVisible=false};Canvas.SetLeft(divider,dividerX);Canvas.SetTop(divider,Height-(size+34)/2-13);strip.Children.Add(divider);
+        dividerX=52+tiles.Count*slot+7;divider=new Border{Width=1,Height=26,Background=ActivityTheme.Brush("Divider","#18FFFFFF"),IsHitTestVisible=false};Canvas.SetLeft(divider,dividerX);Canvas.SetTop(divider,Height-backdrop.Height/2-13);strip.Children.Add(divider);
         if(State.ShowDownloads)AddUtility("Downloads","Folder24",()=>ShowFolder(DockNative.Downloads()),size);
         if(State.ShowBackgroundApps)AddUtility("Background apps","ChevronUp24",()=>{CloseFlyout();bool bridged=Lease.ShowTray();if(!bridged){HideDock(true);DockLog.Write("Native notification area revealed for 15 seconds.");}},size);
         if(State.ShowRecycleBin)AddUtility("Recycle Bin","Delete24",()=>Open("shell:RecycleBinFolder"),size);
 
         backdrop.Width=baseWidth;Position();UpdateVisibility();
     }
-    DockTile Tile(string label,double size){var button=Clean11Fluent.Button("",()=>{},false);Clean11Fluent.Quiet(button);button.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse(@"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='Button'><Border Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border></ControlTemplate>");button.Appearance=Ui.ControlAppearance.Transparent;button.BorderThickness=new Thickness(0);button.Padding=new Thickness(0);button.Width=slot;button.Height=size+14;button.Focusable=false;button.ToolTip=label;ToolTipService.SetInitialShowDelay(button,600);button.RenderTransform=new TranslateTransform();
+    DockTile Tile(string label,double size){var button=Clean11Fluent.Button("",()=>{},false);Clean11Fluent.Quiet(button);button.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse(@"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='Button'><Border Background='Transparent'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border></ControlTemplate>");button.Appearance=Ui.ControlAppearance.Transparent;button.BorderThickness=new Thickness(0);button.Padding=new Thickness(0);button.Width=slot;button.Height=size;button.Focusable=false;button.ToolTip=label;ToolTipService.SetInitialShowDelay(button,600);button.RenderTransform=new TranslateTransform();
         var tile=new DockTile{Button=button,Shift=(TranslateTransform)button.RenderTransform,Scale=new ScaleTransform(1,1),Center=52+tiles.Count*slot+slot/2+(divider!=null?14:0)};
-        Canvas.SetLeft(button,tile.Center-slot/2);Canvas.SetTop(button,Height-button.Height-10);strip.Children.Add(button);tiles.Add(tile);return tile;}
+        Canvas.SetLeft(button,tile.Center-slot/2);Canvas.SetTop(button,Height-backdrop.Height/2-size/2);strip.Children.Add(button);tiles.Add(tile);return tile;}
     void AddUtility(string label,string symbol,Action action,double size){
-        var tile=Tile(label,size);var content=new Grid{Width=size,Height=size+14};
-        content.RowDefinitions.Add(new RowDefinition{Height=new GridLength(size)});content.RowDefinitions.Add(new RowDefinition{Height=new GridLength(14)});
+        var tile=Tile(label,size);var content=new Grid{Width=size,Height=size,ClipToBounds=false};
+        
         var icon=Clean11Fluent.Icon(symbol,22);icon.Foreground=ActivityTheme.Brush("Muted","#A6ABB5");
         var holder=IconFrame(size);holder.Child=icon;holder.RenderTransform=tile.Scale;holder.RenderTransformOrigin=new Point(.5,1);tile.Icon=holder;content.Children.Add(holder);
         tile.Button.Content=content;tile.Button.Click+=(s,e)=>{CloseFlyout();action();};
     }
-    Border IconFrame(double size){return new Border{Width=size,Height=size,Padding=new Thickness(2),CornerRadius=new CornerRadius(size*.28),Background=ActivityTheme.Brush("DockIconSurface","#0CFFFFFF"),BorderBrush=ActivityTheme.Brush("DockIconBorder","#10FFFFFF"),BorderThickness=new Thickness(1)};}
+    Border IconFrame(double size){return new Border{Width=size,Height=size,Padding=new Thickness(3),Background=Brushes.Transparent,BorderThickness=new Thickness(0)};}
     void AddGroup(DockGroup group,double size){
-        var tile=Tile(group.Name,size);tile.Group=group;var content=new Grid{Width=size,Height=size+14};content.RowDefinitions.Add(new RowDefinition{Height=new GridLength(size)});content.RowDefinitions.Add(new RowDefinition{Height=new GridLength(14)});
-        var holder=IconFrame(size);holder.RenderTransform=tile.Scale;holder.RenderTransformOrigin=new Point(.5,1);tile.Icon=holder;content.Children.Add(holder);tile.Dot=new Border{Height=3,Width=4,CornerRadius=new CornerRadius(2),Background=ActivityTheme.Brush("Muted","#B8B8B8"),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Visibility=group.Windows.Count>0?Visibility.Visible:Visibility.Hidden};Grid.SetRow(tile.Dot,1);content.Children.Add(tile.Dot);tile.Button.Content=content;
+        var tile=Tile(group.Name,size);tile.Group=group;var content=new Grid{Width=size,Height=size,ClipToBounds=false};
+        var holder=IconFrame(size);holder.RenderTransform=tile.Scale;holder.RenderTransformOrigin=new Point(.5,1);tile.Icon=holder;content.Children.Add(holder);tile.Dot=new Border{Height=3,Width=3,IsHitTestVisible=false,RenderTransform=new TranslateTransform(0,size/2+5),CornerRadius=new CornerRadius(2),Background=ActivityTheme.Brush("Muted","#B8B8B8"),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center,Visibility=group.Windows.Count>0?Visibility.Visible:Visibility.Hidden};content.Children.Add(tile.Dot);tile.Button.Content=content;
         BitmapSource image;icons.TryGetValue(group.IconPath??"",out image);SetIcon(tile,image);if(image==null&&!String.IsNullOrWhiteSpace(group.IconPath)&&!icons.ContainsKey(group.IconPath)&&pending.Add(group.IconPath))iconRequests.Add(group.IconPath);
         tile.Button.Click+=(s,e)=>{if(dragging)return;if(group.Pin!=null&&Directory.Exists(group.Pin.Path)){ShowFolder(group.Pin.Path);return;}if(group.Windows.Count==1){CloseFlyout();DockNative.Activate(group.Windows[0],true);}else if(group.Windows.Count>1){if(flyout!=null&&flyout.GroupKey==group.Key)CloseFlyout();else ShowWindows(tile);}else Launch(group);};
         tile.Button.PreviewMouseDown+=(s,e)=>{if(e.ChangedButton==MouseButton.Middle){Launch(tile.Group);e.Handled=true;}};

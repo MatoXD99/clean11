@@ -61,3 +61,5 @@ Interactive computer-use checks covered settled dock appearance, hover enlargeme
 Icon extraction follows Microsoft's [IShellItemImageFactory guidance](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemimagefactory-getimage), including background extraction and releasing returned bitmap handles.
 
 Icon layout refinement: app and utility icons share the same frame and vertical baseline. Transparent shell-image padding is cropped on the icon worker, artwork fits a consistent inner box, running indicators use one size, and the dock has additional vertical breathing room. Dock hover uses magnification without an extra button-shaped background. The updated surface was inspected through computer use.
+
+Icon-only refinement: individual icon surfaces and borders are removed. All icons are centered on the dock's vertical midpoint. Running indicators are 3-pixel overlays beneath the icon bounds, not a dedicated layout row, allowing the dock height to shrink without shifting icon alignment. Existing magnification and normalized icon spacing remain in place.
