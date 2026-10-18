@@ -14,10 +14,10 @@ sealed class DockBackdrop : Window {
     [DllImport("user32.dll")] [return:MarshalAs(UnmanagedType.Bool)] static extern bool SetWindowCompositionAttribute(IntPtr window,ref CompositionData data);
     IntPtr handle;
     string lastMaterialStatus="";
-    bool SetBlur(bool enabled){
+    bool SetBlur(bool enabled,int mode=3){
         // ACCENT_ENABLE_BLURBEHIND avoids desktop Acrylic's focus-dependent
         // solid fallback. This compatibility API may be unavailable on a build.
-        var policy=new AccentPolicy{State=enabled?3:0};
+        var policy=new AccentPolicy{State=enabled?mode:0};
         IntPtr memory=Marshal.AllocHGlobal(Marshal.SizeOf(typeof(AccentPolicy)));
         try{
             Marshal.StructureToPtr(policy,memory,false);
@@ -26,7 +26,8 @@ sealed class DockBackdrop : Window {
         }catch(EntryPointNotFoundException){return false;}
         finally{Marshal.FreeHGlobal(memory);}
     }
-    bool Acrylic;
+    internal static bool AdjustableBlurAvailable;
+    bool Acrylic;DockComposition composition;bool compositionFailed;
     internal DockBackdrop(){
         Title="Clean11 dock material";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;
         ShowInTaskbar=false;ShowActivated=false;Topmost=true;Background=Brushes.Transparent;
@@ -37,18 +38,29 @@ sealed class DockBackdrop : Window {
             HwndSource.FromHwnd(handle).CompositionTarget.BackgroundColor=Colors.Transparent;
             int dark=1,round=2,border=-2;DockNative.DwmSetWindowAttribute(handle,20,ref dark,4);DockNative.DwmSetWindowAttribute(handle,33,ref round,4);DockNative.DwmSetWindowAttribute(handle,34,ref border,4);
         };
+        Closed+=(s,e)=>{if(composition!=null)composition.Dispose();};
         new WindowInteropHelper(this).EnsureHandle();
     }
     internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
         Left=left;Top=top;Width=Math.Max(1,width);Height=Math.Max(1,height);
         int type=1;DockNative.DwmSetWindowAttribute(handle,38,ref type,4);
-        bool accepted=SetBlur(glass);Acrylic=glass&&accepted;
+        int radius=8;try{radius=OverviewPreferences.Load().BlurRadius;}catch{}
+        if(glass&&composition==null&&!compositionFailed){
+            try{composition=new DockComposition(handle);AdjustableBlurAvailable=true;DockLog.Write("Adjustable dock blur initialized.");}
+            catch(Exception error){compositionFailed=true;DockLog.Write("Adjustable blur unavailable: "+error.ToString());}
+        }
+        bool custom=glass&&composition!=null;
+        bool accepted=SetBlur(glass,custom?5:3);Acrylic=glass&&accepted;
         var margins=Acrylic?new Margins{Left=-1,Right=-1,Top=-1,Bottom=-1}:new Margins();
         int frameResult=DwmExtendFrameIntoClientArea(handle,ref margins);
         string status="Dock blur: requested="+glass+", accepted="+accepted+", frame="+frameResult;
         if(status!=lastMaterialStatus){DockLog.Write(status);lastMaterialStatus=status;}
         var tint=ActivityTheme.Brush("Surface","#23252A").Color;tint.A=(byte)Math.Round(204*(1-Math.Max(0,Math.Min(100,strength))/100.0));
-        Background=Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
+        if(composition!=null){
+            composition.SetVisible(custom);
+            if(custom)composition.Update((float)(width*dpi),(float)(height*dpi),(float)(radius*dpi),tint.A);
+        }
+        Background=custom?Brushes.Transparent:Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
         if(visible){if(!IsVisible)Show();DockNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);}
         else Hide();
     }

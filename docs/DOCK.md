@@ -87,3 +87,7 @@ The separate dock slider has been removed. Settings > Overview & search > Glass 
 ### Fullscreen visibility override
 
 Settings > Dock separates Visibility (Never hide, Intelligent, Auto-hide) from **Hide in fullscreen apps and games**. The toggle defaults to On to preserve existing behavior. On forces the dock and its previews to hide in detected fullscreen apps; Off leaves the normal visibility rules in control. Never hide plus Off permits the dock over fullscreen content, subject to Windows/game presentation constraints. Intelligent still hides on overlap, and Auto-hide still requires the bottom edge. Click Apply to save. The existing internal Always value remains compatible with older settings.
+
+### Adjustable blur radius
+
+Settings > Overview & search has a shared Blur radius control (0-40 px, default 8). Save applies it to the dock immediately and to search and previews on opening. Glass visibility remains an independent tint control. Zero removes Gaussian blur. The dock uses Windows Composition; initialization failure falls back to system blur and is indicated in Settings. Build.ps1 references desktop Windows WinMetadata and Framework WindowsRuntime assemblies. Runtime initialization succeeded; appearance has not been visually verified.

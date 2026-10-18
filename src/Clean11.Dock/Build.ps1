@@ -10,6 +10,10 @@ Copy-Item -LiteralPath (Join-Path $shared 'ActivitiesTheme.json') -Destination $
 $references = @('/r:System.Windows.Forms.dll','/r:System.Drawing.dll','/r:System.Web.Extensions.dll','/r:Microsoft.CSharp.dll','/r:System.Core.dll','/r:System.Xml.dll','/r:System.Xaml.dll')
 foreach($name in @('WindowsBase','PresentationCore','PresentationFramework','WindowsFormsIntegration')){$references += '/r:'+(Join-Path $framework "WPF/$name.dll")}
 foreach($name in @('Wpf.Ui','Wpf.Ui.Abstractions')){$references += '/r:'+(Join-Path $out "$name.dll")}
+$references += '/r:'+(Join-Path $framework 'System.Runtime.WindowsRuntime.dll')
+$references += '/r:System.Numerics.dll','/r:System.Runtime.dll','/r:System.Runtime.InteropServices.WindowsRuntime.dll'
+$references += '/r:'+(Join-Path $out 'System.Numerics.Vectors.dll')
+foreach($metadata in @('Windows.Foundation','Windows.UI','Windows.Graphics')){$references += '/r:'+(Join-Path ([Environment]::GetFolderPath('Windows')) "System32/WinMetadata/$metadata.winmd")}
 $sources = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' | ForEach-Object FullName)
 $sources += Join-Path $shared 'Clean11Fluent.cs'
 $sources += Join-Path $shared 'ActivityTheme.cs'

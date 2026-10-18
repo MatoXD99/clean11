@@ -47,7 +47,7 @@ static class FrostedMaterial {
         try{
             string path=WallpaperPath(screen);string style="10",tile="0";
             using(var key=Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop")){if(key!=null){style=Convert.ToString(key.GetValue("WallpaperStyle","10"));tile=Convert.ToString(key.GetValue("TileWallpaper","0"));}}
-            string next=screen.ToString()+"|"+path+"|"+(File.Exists(path)?File.GetLastWriteTimeUtc(path).Ticks:0)+"|"+style+"|"+tile;
+            string next=OverviewPreferences.Load().BlurRadius+"|"+screen.ToString()+"|"+path+"|"+(File.Exists(path)?File.GetLastWriteTimeUtc(path).Ticks:0)+"|"+style+"|"+tile;
             if(next!=signature){
                 wallpaper=Load(path,screen,style,tile);signature=next;
                 Trace.WriteLine("Frosted wallpaper material cached; screen="+screen.Width+"x"+screen.Height+", available="+(wallpaper!=null));
@@ -78,7 +78,7 @@ static class FrostedMaterial {
             }
         }
         var original=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);original.Render(drawing);original.Freeze();
-        var blur=new System.Windows.Controls.Image{Source=original,Width=width,Height=height,Stretch=Stretch.Fill,Effect=new BlurEffect{Radius=ActivityTheme.Number("BlurRadius",28)*scale,KernelType=KernelType.Gaussian,RenderingBias=RenderingBias.Performance}};
+        var blur=new System.Windows.Controls.Image{Source=original,Width=width,Height=height,Stretch=Stretch.Fill,Effect=new BlurEffect{Radius=OverviewPreferences.Load().BlurRadius*scale,KernelType=KernelType.Gaussian,RenderingBias=RenderingBias.Performance}};
         blur.Measure(new Size(width,height));blur.Arrange(new Rect(0,0,width,height));
         var result=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);result.Render(blur);result.Freeze();return result;
     }
