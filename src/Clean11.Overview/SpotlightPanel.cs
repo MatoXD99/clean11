@@ -66,7 +66,7 @@ sealed class SpotlightPanel : Window {
     int savedSelectionStart,savedSelectionLength;
     IntPtr hwnd;
     double dpi=1;
-    SolidColorBrush TextBrush=ActivityTheme.Brush("Text","#F2F5FC"),Muted=ActivityTheme.Brush("Muted","#A3AEC2"),Accent=ActivityTheme.Brush("Accent","#6EB3FF");
+    SolidColorBrush TextBrush=new SolidColorBrush(FrostedMaterial.Ink(false)),Muted=new SolidColorBrush(FrostedMaterial.Ink(true)),Accent=ActivityTheme.Brush("Accent","#6EB3FF");
     [DllImport("dwmapi.dll")]static extern int DwmSetWindowAttribute(IntPtr handle,int attribute,ref int value,int length);
     [StructLayout(LayoutKind.Sequential)]struct Margins {public int Left,Right,Top,Bottom;}
     [DllImport("dwmapi.dll")]static extern int DwmExtendFrameIntoClientArea(IntPtr handle,ref Margins margins);
@@ -124,10 +124,15 @@ sealed class SpotlightPanel : Window {
     }
     Ui.Button Button(string text,Action action){return Clean11Fluent.Button(text,action,false);}
     internal void ApplyMaterial(){
+        TextBrush.Color=FrostedMaterial.Ink(false);Muted.Color=FrostedMaterial.Ink(true);
+        Resources["Text"]=TextBrush;Resources["Muted"]=Muted;
+        Resources["Hover"]=new SolidColorBrush(Color.FromArgb(38,115,171,207));
+        Resources["Selected"]=new SolidColorBrush(Color.FromArgb(85,84,157,204));
+        surface.BorderBrush=FrostedMaterial.Edge();
         bool glass=FrostedMaterial.Enabled(overview.SpotlightGlass);
         if(hwnd!=IntPtr.Zero){int none=1;DwmSetWindowAttribute(hwnd,38,ref none,4);var margins=new Margins();DwmExtendFrameIntoClientArea(hwnd,ref margins);}
         materialScreen=Forms.Screen.FromHandle(overview.Handle).Bounds;material=glass?FrostedMaterial.Create(materialScreen):null;
-        surface.Background=material!=null?(Brush)material:(Brush)FindResource("Surface");root.Background=material!=null?FrostedMaterial.Tint():Brushes.Transparent;
+        surface.Background=material!=null?(Brush)material:new SolidColorBrush(FrostedMaterial.Tone);root.Background=material!=null?FrostedMaterial.Tint():Brushes.Transparent;
         FrostedMaterial.Position(material,Current(),materialScreen);
         if(hwnd!=IntPtr.Zero)Native.Log("Spotlight material: per-pixel alpha=True, wallpaper frost="+(material!=null)+", rectangular DWM backdrop=False");
     }

@@ -64,3 +64,7 @@ System text scaling, accessible names and roles, screen-reader navigation, visib
 Review compact overview input, favorites, empty Search, populated Search, details, no-results, provider failure, Settings, rename dialog, context/submenus, dock magnification, tray flyout, power menu, desktop selection, and window previews.
 
 Each must be inspected in light/dark/high-contrast modes, at 100/125/150/200% scaling, on mixed-DPI displays, and against both very light and very dark backgrounds. Hidden/offscreen renders can check assets and clipping, but actual desktop composition and input behavior require a later scheduled interactive review.
+
+## Clean11 glass materials
+
+Midnight (default) is cool blue-gray smoked glass; Pearl is an icy light frost with dark ink. Both share a mild vertical tint gradient and a restrained cool edge highlight. At maximum visibility a small tint remains to support text contrast. Settings > Overview & search selects the material; existing blur radius and glass visibility remain independent. Search ink and result resources update with the preset; preview labels and dock utility glyphs follow it. This is a curated two-preset material, not adaptive per-pixel vibrancy or simulated optical refraction. Dock uses the live compositor; search and preview panels retain the cached wallpaper source. External Seelen components are unchanged.

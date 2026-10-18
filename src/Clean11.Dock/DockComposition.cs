@@ -41,7 +41,7 @@ sealed class DockComposition : IDisposable {
     [StructLayout(LayoutKind.Sequential)]struct QueueOptions{public int Size,Thread,Apartment;}
     [DllImport("CoreMessaging.dll")]static extern int CreateDispatcherQueueController(QueueOptions options,[MarshalAs(UnmanagedType.IUnknown)]out object controller);
     static object queue;
-    Compositor compositor;IDesktopTarget target;ContainerVisual root;SpriteVisual blur,tint;CompositionEffectBrush effect;CompositionColorBrush tintBrush;CompositionBackdropBrush sourceBrush;CompositionEffectFactory factory;
+    Compositor compositor;IDesktopTarget target;ContainerVisual root;SpriteVisual blur,tint;CompositionEffectBrush effect;CompositionLinearGradientBrush tintBrush;CompositionBackdropBrush sourceBrush;CompositionEffectFactory factory;
     internal DockComposition(IntPtr window){
         if(queue==null){object controller;int hr=CreateDispatcherQueueController(new QueueOptions{Size=12,Thread=2,Apartment=2},out controller);if(hr<0)Marshal.ThrowExceptionForHR(hr);queue=controller;}
         try{
@@ -52,15 +52,17 @@ sealed class DockComposition : IDisposable {
         factory=compositor.CreateEffectFactory(new DockGaussian{Name="Blur",Source=new CompositionEffectSourceParameter("Backdrop")},new[]{"Blur.BlurAmount"});
         effect=factory.CreateBrush();sourceBrush=compositor.CreateBackdropBrush();effect.SetSourceParameter("Backdrop",sourceBrush);
         blur=compositor.CreateSpriteVisual();blur.Brush=effect;root.Children.InsertAtTop(blur);
-        tintBrush=compositor.CreateColorBrush();tint=compositor.CreateSpriteVisual();tint.Brush=tintBrush;root.Children.InsertAtTop(tint);
+        tintBrush=compositor.CreateLinearGradientBrush();tintBrush.StartPoint=new Vector2(0,0);tintBrush.EndPoint=new Vector2(.2f,1);tint=compositor.CreateSpriteVisual();tint.Brush=tintBrush;root.Children.InsertAtTop(tint);
         }catch{Dispose();throw;}
     }
     internal void SetVisible(bool visible){root.IsVisible=visible;}
     internal void Update(float width,float height,float radius,byte alpha){
         root.Size=blur.Size=tint.Size=new Vector2(width,height);
         effect.Properties.InsertScalar("Blur.BlurAmount",Math.Max(0,Math.Min(40,radius)));
-        var color=ActivityTheme.Brush("Surface","#23252A").Color;
-        tintBrush.Color=Windows.UI.Color.FromArgb(alpha,color.R,color.G,color.B);
+        var color=FrostedMaterial.Tone;
+        tintBrush.ColorStops.Clear();
+        tintBrush.ColorStops.Add(compositor.CreateColorGradientStop(0,Windows.UI.Color.FromArgb(alpha,(byte)Math.Min(255,color.R+13),(byte)Math.Min(255,color.G+15),(byte)Math.Min(255,color.B+16))));
+        tintBrush.ColorStops.Add(compositor.CreateColorGradientStop(1,Windows.UI.Color.FromArgb(alpha,color.R,color.G,color.B)));
     }
     public void Dispose(){if(target!=null)target.Root=null;if(tint!=null)tint.Dispose();if(blur!=null)blur.Dispose();if(root!=null)root.Dispose();if(effect!=null)effect.Dispose();if(sourceBrush!=null)sourceBrush.Dispose();if(factory!=null)factory.Dispose();if(tintBrush!=null)tintBrush.Dispose();var disposable=target as IDisposable;if(disposable!=null)disposable.Dispose();if(compositor!=null)compositor.Dispose();}
 }

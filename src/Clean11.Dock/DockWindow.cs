@@ -94,7 +94,7 @@ sealed class DockWindow : Window {
     void AddUtility(string label,string symbol,Action action,double size){
         var tile=Tile(label,size);var content=new Grid{Width=size,Height=size,ClipToBounds=false};
         
-        var icon=Clean11Fluent.Icon(symbol,22);icon.Foreground=ActivityTheme.Brush("Muted","#A6ABB5");
+        var icon=Clean11Fluent.Icon(symbol,22);icon.Foreground=new SolidColorBrush(FrostedMaterial.Ink(true));
         var holder=IconFrame(size);holder.Child=icon;holder.RenderTransform=tile.Scale;holder.RenderTransformOrigin=new Point(.5,1);tile.Icon=holder;content.Children.Add(holder);
         tile.Button.Content=content;tile.Button.Click+=(s,e)=>{CloseFlyout();action();};
     }
@@ -157,7 +157,8 @@ sealed class DockWindow : Window {
         glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,glass,strength);
         // Alpha zero is a native hit-test hole in a layered window. Retain one
         // alpha step across the whole bar so gaps receive continuous MouseMove.
-        backdrop.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));backdrop.BorderThickness=new Thickness(0);
+        backdrop.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));backdrop.BorderThickness=new Thickness(1);backdrop.CornerRadius=new CornerRadius(8);backdrop.BorderBrush=FrostedMaterial.Edge();
+        foreach(var tile in tiles){if(tile.Group==null){var frame=tile.Icon as Border;if(frame!=null){var glyph=frame.Child as Ui.SymbolIcon;if(glyph!=null)glyph.Foreground=new SolidColorBrush(FrostedMaterial.Ink(true));}}}
     }
     internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
     internal void DisposeDock(){if(disposed)return;disposed=true;if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}

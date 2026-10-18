@@ -14,7 +14,7 @@ sealed class DockFlyout : Window {
     readonly List<IntPtr> thumbnails=new List<IntPtr>(); bool closed;
     DockFlyout(DockWindow owner,Point point){
         dock=owner;anchor=point;Clean11Fluent.Apply(this);Title="Clean11 dock preview";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=false;ShowActivated=false;Topmost=true;Width=340;SizeToContent=SizeToContent.Height;MaxHeight=520;
-        Background=ActivityTheme.Brush("Surface","#202020");Foreground=ActivityTheme.Brush("Text","#F5F5F5");
+        Background=ActivityTheme.Brush("Surface","#202020");Foreground=new SolidColorBrush(FrostedMaterial.Ink(false));
         // DWM owns the outer corner and border together. A second WPF rounded
         // border had a different radius and left a square wedge at each corner.
         Content=new Border{Padding=new Thickness(14),Background=Background,Child=body};
@@ -30,7 +30,7 @@ sealed class DockFlyout : Window {
     static Brush PreviewCardBrush(){
         bool glass=true;try{glass=OverviewPreferences.Load().Glass;}catch{}
         if(!FrostedMaterial.Enabled(glass))return ActivityTheme.Brush("Card","#2B2E34");
-        return new SolidColorBrush(Color.FromArgb(72,43,46,52));
+        var tone=FrostedMaterial.Tone;tone.A=65;return new SolidColorBrush(tone);
     }
     sealed class WindowPreview {
         internal DockAppWindow Window;
@@ -43,7 +43,7 @@ sealed class DockFlyout : Window {
     internal DockFlyout(DockWindow owner,DockGroup group,Point point):this(owner,point){
         GroupKey=group.Key;Width=360;
         var header=new DockPanel{Margin=new Thickness(2,0,2,12)};
-        var count=new TextBlock{Text=group.Windows.Count+" open",Foreground=ActivityTheme.Brush("Muted","#A6ABB5"),FontSize=12,VerticalAlignment=VerticalAlignment.Center};
+        var count=new TextBlock{Text=group.Windows.Count+" open",Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),FontSize=12,VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(count,Dock.Right);header.Children.Add(count);
         header.Children.Add(new TextBlock{Text=group.Name,FontSize=15,FontWeight=FontWeights.SemiBold,TextTrimming=TextTrimming.CharacterEllipsis});body.Children.Add(header);
         var list=new Grid();windowScroll=new ScrollViewer{Content=list,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,CanContentScroll=false};body.Children.Add(windowScroll);
@@ -53,9 +53,9 @@ sealed class DockFlyout : Window {
             var card=new Border{Background=PreviewCardBrush(),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.RowRadius),Padding=new Thickness(8),Margin=new Thickness(4,0,4,8),Child=cardBody};
             var titleRow=new Grid{Margin=new Thickness(0,0,0,6)};titleRow.ColumnDefinitions.Add(new ColumnDefinition());titleRow.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
             var title=new TextBlock{Text=window.Title,TextTrimming=TextTrimming.CharacterEllipsis,FontSize=12,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center};
-            var open=Clean11Fluent.Button("",()=>{DockNative.Activate(window,false);dock.CloseFlyout();},false);Clean11Fluent.Quiet(open);open.Content=title;open.HorizontalContentAlignment=HorizontalAlignment.Stretch;open.Padding=new Thickness(3,0,5,0);open.MinWidth=0;open.MinHeight=28;open.ToolTip=window.Title;titleRow.Children.Add(open);
-            var close=Clean11Fluent.IconButton("Close "+window.Title,"Dismiss16",()=>{DockNative.PostMessage(window.Handle,0x10,IntPtr.Zero,IntPtr.Zero);dock.CloseFlyout();});Clean11Fluent.Quiet(close);close.Width=28;close.Height=28;close.MinHeight=28;close.Padding=new Thickness(4);Grid.SetColumn(close,1);titleRow.Children.Add(close);cardBody.Children.Add(titleRow);
-            var placeholder=new TextBlock{Text=DockNative.IsIconic(window.Handle)?"Minimized window":"Preview unavailable",Foreground=ActivityTheme.Brush("Muted","#A6ABB5"),FontSize=12,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+            var open=Clean11Fluent.Button("",()=>{DockNative.Activate(window,false);dock.CloseFlyout();},false);Clean11Fluent.Quiet(open);open.Foreground=Foreground;open.Content=title;open.HorizontalContentAlignment=HorizontalAlignment.Stretch;open.Padding=new Thickness(3,0,5,0);open.MinWidth=0;open.MinHeight=28;open.ToolTip=window.Title;titleRow.Children.Add(open);
+            var close=Clean11Fluent.IconButton("Close "+window.Title,"Dismiss16",()=>{DockNative.PostMessage(window.Handle,0x10,IntPtr.Zero,IntPtr.Zero);dock.CloseFlyout();});Clean11Fluent.Quiet(close);close.Foreground=Foreground;close.Width=28;close.Height=28;close.MinHeight=28;close.Padding=new Thickness(4);Grid.SetColumn(close,1);titleRow.Children.Add(close);cardBody.Children.Add(titleRow);
+            var placeholder=new TextBlock{Text=DockNative.IsIconic(window.Handle)?"Minimized window":"Preview unavailable",Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),FontSize=12,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
             var surface=new Border{Height=146,Background=ActivityTheme.Brush("Surface","#23252A"),CornerRadius=new CornerRadius(ActivityTheme.ControlRadius),Child=placeholder,Cursor=System.Windows.Input.Cursors.Hand,ToolTip="Switch to "+window.Title};
             surface.MouseLeftButtonUp+=(s,e)=>{DockNative.Activate(window,false);dock.CloseFlyout();};
             card.MouseEnter+=(s,e)=>card.BorderBrush=ActivityTheme.Brush("Accent","#60CDFF");

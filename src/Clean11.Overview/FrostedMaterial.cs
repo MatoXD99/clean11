@@ -87,14 +87,24 @@ static class FrostedMaterial {
         if(!preference||SystemParameters.HighContrast)return false;
         try{using(var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))return key==null||Convert.ToInt32(key.GetValue("EnableTransparency",1))!=0;}catch{return true;}
     }
+    internal static bool Light {get{try{var prefs=OverviewPreferences.Load();return prefs.GlassStyle=="Pearl"&&Enabled(prefs.Glass);}catch{return false;}}}
+    internal static Color Ink(bool secondary){return Light?(secondary?Color.FromRgb(62,79,96):Color.FromRgb(19,35,51)):(secondary?Color.FromRgb(186,203,219):Color.FromRgb(244,249,255));}
+    internal static Color Tone {get{return Light?Color.FromRgb(222,235,244):Color.FromRgb(23,36,51);}}
+    internal static byte TintAlpha(int strength){return (byte)Math.Round(255*(.22+.58*(1-Math.Max(0,Math.Min(100,strength))/100.0)));}
+    internal static Brush Edge(){
+        var brush=new LinearGradientBrush();brush.StartPoint=new Point(0,0);brush.EndPoint=new Point(.4,1);
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(Light?(byte)185:(byte)105,233,248,255),0));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(24,146,197,226),.48));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(75,15,35,55),1));brush.Freeze();return brush;
+    }
     internal static Brush Tint(){
         int strength=60;try{strength=OverviewPreferences.Load().GlassStrength;}catch{}
-        var color=ActivityTheme.Brush("Surface","#23252A").Color;
-        color.A=(byte)Math.Round(204*(1-Math.Max(0,Math.Min(100,strength))/100.0));
-        var brush=new SolidColorBrush(color);brush.Freeze();return brush;
+        var color=Tone;color.A=TintAlpha(strength);
+        var top=color;top.R=(byte)Math.Min(255,top.R+13);top.G=(byte)Math.Min(255,top.G+15);top.B=(byte)Math.Min(255,top.B+16);
+        var brush=new LinearGradientBrush(top,color,new Point(0,0),new Point(.2,1));brush.Freeze();return brush;
     }
     internal static Brush PanelBrush(Drawing.Rectangle bounds,Drawing.Rectangle screen,bool glass){
-        var image=Enabled(glass)?Create(screen):null;if(image==null)return ActivityTheme.Brush("Surface","#202632");Position(image,bounds,screen);
+        var image=Enabled(glass)?Create(screen):null;if(image==null)return new SolidColorBrush(Tone);Position(image,bounds,screen);
         var drawing=new DrawingGroup();using(var dc=drawing.Open()){dc.DrawRectangle(image,null,new Rect(0,0,1,1));dc.DrawRectangle(Tint(),null,new Rect(0,0,1,1));}var result=new DrawingBrush(drawing){Stretch=Stretch.Fill};result.Freeze();return result;
     }
     internal static void StyleMenu(System.Windows.Controls.ContextMenu menu,bool glass){

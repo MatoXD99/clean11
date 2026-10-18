@@ -55,7 +55,7 @@ sealed class DockBackdrop : Window {
         int frameResult=DwmExtendFrameIntoClientArea(handle,ref margins);
         string status="Dock blur: requested="+glass+", accepted="+accepted+", frame="+frameResult;
         if(status!=lastMaterialStatus){DockLog.Write(status);lastMaterialStatus=status;}
-        var tint=ActivityTheme.Brush("Surface","#23252A").Color;tint.A=(byte)Math.Round(204*(1-Math.Max(0,Math.Min(100,strength))/100.0));
+        var tint=FrostedMaterial.Tone;tint.A=FrostedMaterial.TintAlpha(strength);
         if(composition!=null){
             composition.SetVisible(custom);
             if(custom)composition.Update((float)(width*dpi),(float)(height*dpi),(float)(radius*dpi),tint.A);

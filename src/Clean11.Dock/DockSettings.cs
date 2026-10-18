@@ -35,6 +35,8 @@ sealed class DockSettings : Window {
         var columns=new Slider{Minimum=3,Maximum=5,Value=prefs.PreviewColumns,TickFrequency=1,IsSnapToTickEnabled=true};Row(panel,"Windows per row",columns);
         var reduced=Toggle(panel,"Reduce motion",prefs.ReducedMotion);
         var glass=Toggle(panel,"Frosted glass · search, dock & previews",prefs.Glass);
+        var material=new ComboBox{ItemsSource=new[]{"Midnight","Pearl"},SelectedItem=prefs.GlassStyle};Row(panel,"Clean11 glass · Midnight / Pearl",material);
+        panel.Children.Add(new TextBlock{Text="Midnight is cool smoked glass. Pearl is a luminous frost with dark text. Both keep a gentle tint for readability.",TextWrapping=TextWrapping.Wrap,Foreground=ActivityTheme.Brush("Muted","#A6ABB5"),Margin=new Thickness(0,0,0,8)});
         var strength=new Slider{Minimum=0,Maximum=100,Value=prefs.GlassStrength,TickFrequency=5,IsSnapToTickEnabled=true};Row(panel,"Glass visibility · dock, search & previews",strength);
         var strengthValue=new TextBlock{Text=prefs.GlassStrength+"%",Foreground=ActivityTheme.Brush("Muted","#A6ABB5")};panel.Children.Add(strengthValue);
         strength.ValueChanged+=(s,e)=>strengthValue.Text=((int)strength.Value)+"%";
@@ -47,7 +49,7 @@ sealed class DockSettings : Window {
         var games=Toggle(panel,"Live game previews",prefs.LiveGamePreviews);
         panel.Children.Add(new TextBlock{Text="Show live game content in the overview. Turn off to reduce GPU work while gaming.",TextWrapping=TextWrapping.Wrap,Foreground=ActivityTheme.Brush("Muted","#A6ABB5"),Margin=new Thickness(0,4,0,18)});
         var status=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,12,0,12)};
-        panel.Children.Add(Clean11Fluent.Button("Save settings",()=>{try{prefs.MotionDuration=(int)duration.Value;prefs.PreviewColumns=(int)columns.Value;prefs.ReducedMotion=reduced.IsChecked==true;prefs.Glass=glass.IsChecked==true;prefs.LiveGamePreviews=games.IsChecked==true;prefs.GlassStrength=(int)strength.Value;prefs.BlurRadius=(int)radius.Value;prefs.Save();dock.CloseFlyout();dock.RefreshGlass();status.Text="Saved. Dock updated; search and previews update on opening.";}catch{status.Text="Could not save settings. Your changes have not been applied.";}},true));
+        panel.Children.Add(Clean11Fluent.Button("Save settings",()=>{try{prefs.MotionDuration=(int)duration.Value;prefs.PreviewColumns=(int)columns.Value;prefs.ReducedMotion=reduced.IsChecked==true;prefs.Glass=glass.IsChecked==true;prefs.LiveGamePreviews=games.IsChecked==true;prefs.GlassStyle=(string)material.SelectedItem;prefs.GlassStrength=(int)strength.Value;prefs.BlurRadius=(int)radius.Value;prefs.Save();dock.CloseFlyout();dock.RefreshGlass();status.Text="Saved. Dock updated; search and previews update on opening.";}catch{status.Text="Could not save settings. Your changes have not been applied.";}},true));
         panel.Children.Add(status);
         panel.Children.Add(Clean11Fluent.Button("Add a portable application…",()=>{var dialog=new OpenFileDialog{Filter="Applications and shortcuts|*.exe;*.lnk"};if(dialog.ShowDialog(this)==true){try{OverviewPreferences.AddPortable(dialog.FileName);status.Text="Application added to search.";}catch{status.Text="Could not add application.";}}},false));
         panel.Children.Add(Clean11Fluent.Button("Refresh Windows Settings index",()=>{try{OverviewPreferences.RunOverview("--refresh-settings");status.Text="Index refresh requested.";}catch{status.Text="Could not find the overview application.";}},false));
