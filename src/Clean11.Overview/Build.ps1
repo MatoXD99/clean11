@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $compiler = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $framework = Split-Path $compiler
-$sources = @('ActivitiesOverview.cs','OverviewPreferences.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
+$sources = @('ActivitiesOverview.cs','OverviewPreferences.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs','DockBackdrop.cs','DockComposition.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
 $libraries = @(
  'WPF-UI.4.3.0/lib/net472/Wpf.Ui.dll',
  'WPF-UI.Abstractions.4.3.0/lib/net472/Wpf.Ui.Abstractions.dll',
@@ -15,5 +15,9 @@ $references = @('/r:System.Windows.Forms.dll','/r:System.Drawing.dll','/r:System
 foreach($assembly in @('WindowsBase','PresentationCore','PresentationFramework','WindowsFormsIntegration')){$references += '/r:'+(Join-Path $framework "WPF/$assembly.dll")}
 $references += '/r:'+(Join-Path $PSScriptRoot 'Wpf.Ui.dll')
 $references += '/r:'+(Join-Path $PSScriptRoot 'Wpf.Ui.Abstractions.dll')
+$references += '/r:'+(Join-Path $framework 'System.Runtime.WindowsRuntime.dll')
+$references += '/r:System.Numerics.dll','/r:System.Runtime.dll','/r:System.Runtime.InteropServices.WindowsRuntime.dll'
+$references += '/r:'+(Join-Path $PSScriptRoot 'System.Numerics.Vectors.dll')
+foreach($metadata in @('Windows.Foundation','Windows.UI','Windows.Graphics')){$references += '/r:'+(Join-Path ([Environment]::GetFolderPath('Windows')) "System32/WinMetadata/$metadata.winmd")}
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:Program "/out:$PSScriptRoot/ActivitiesOverview.exe" @references @sources
 if($LASTEXITCODE -ne 0){throw 'Clean11 WPF UI build failed'}

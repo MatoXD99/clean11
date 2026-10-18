@@ -12,9 +12,9 @@ sealed class DockBackdrop : Window {
         Title="Clean11 dock material";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;
         ShowInTaskbar=false;ShowActivated=false;Topmost=true;Background=Brushes.Transparent;IsHitTestVisible=false;
         SourceInitialized+=(s,e)=>{
-            handle=new WindowInteropHelper(this).Handle;DockNative.NoActivate(this);
-            DockNative.SetLong(handle,-20,new IntPtr(DockNative.GetLong(handle,-20).ToInt64()|0x20));
-            int dark=1,round=2,border=-2;DockNative.DwmSetWindowAttribute(handle,20,ref dark,4);DockNative.DwmSetWindowAttribute(handle,33,ref round,4);DockNative.DwmSetWindowAttribute(handle,34,ref border,4);
+            handle=new WindowInteropHelper(this).Handle;GlassNative.NoActivate(this);
+            GlassNative.SetLong(handle,-20,new IntPtr(GlassNative.GetLong(handle,-20).ToInt64()|0x20));
+            int dark=1,round=2,border=-2;GlassNative.DwmSetWindowAttribute(handle,20,ref dark,4);GlassNative.DwmSetWindowAttribute(handle,33,ref round,4);GlassNative.DwmSetWindowAttribute(handle,34,ref border,4);
             material=new DockPopupMaterial(handle,true);
         };
         Closed+=(s,e)=>{if(material!=null)material.Dispose();};
@@ -23,7 +23,7 @@ sealed class DockBackdrop : Window {
     internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
         Left=left;Top=top;Width=Math.Max(1,width);Height=Math.Max(1,height);
         Background=material.Update(width,height,dpi,glass,strength);
-        if(visible){if(!IsVisible)Show();DockNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);}
+        if(visible){if(!IsVisible)Show();GlassNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);}
         else Hide();
     }
 }
@@ -59,18 +59,18 @@ sealed class DockPopupMaterial : IDisposable {
     }
     internal DockPopupMaterial(IntPtr window,bool above=false){handle=window;aboveContent=above;HwndSource.FromHwnd(handle).CompositionTarget.BackgroundColor=Colors.Transparent;}
     internal Brush Update(double width,double height,double dpi,bool glass,int strength){
-        int type=1;DockNative.DwmSetWindowAttribute(handle,38,ref type,4);
+        int type=1;GlassNative.DwmSetWindowAttribute(handle,38,ref type,4);
         int radius=8;try{radius=OverviewPreferences.Load().BlurRadius;}catch{}
         if(glass&&composition==null&&!compositionFailed){
-            try{composition=new DockComposition(handle,aboveContent);DockBackdrop.AdjustableBlurAvailable=true;DockLog.Write("Adjustable dock blur initialized.");}
-            catch(Exception error){compositionFailed=true;DockLog.Write("Adjustable blur unavailable: "+error.ToString());}
+            try{composition=new DockComposition(handle,aboveContent);DockBackdrop.AdjustableBlurAvailable=true;System.Diagnostics.Trace.WriteLine("Adjustable dock blur initialized.");}
+            catch(Exception error){compositionFailed=true;System.Diagnostics.Trace.WriteLine("Adjustable blur unavailable: "+error.ToString());}
         }
         bool custom=glass&&composition!=null;
         bool accepted=SetBlur(glass,custom?5:3);Acrylic=glass&&accepted;
         var margins=Acrylic?new Margins{Left=-1,Right=-1,Top=-1,Bottom=-1}:new Margins();
         int frameResult=DwmExtendFrameIntoClientArea(handle,ref margins);
         string status="Dock blur: requested="+glass+", accepted="+accepted+", frame="+frameResult;
-        if(status!=lastMaterialStatus){DockLog.Write(status);lastMaterialStatus=status;}
+        if(status!=lastMaterialStatus){System.Diagnostics.Trace.WriteLine(status);lastMaterialStatus=status;}
         var tint=FrostedMaterial.Tone;tint.A=FrostedMaterial.TintAlpha(strength);
         if(composition!=null){
             composition.SetVisible(custom);
@@ -79,4 +79,12 @@ sealed class DockPopupMaterial : IDisposable {
         return custom?Brushes.Transparent:Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
     }
     public void Dispose(){if(composition!=null)composition.Dispose();}
+}
+
+static class GlassNative {
+    [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")]internal static extern IntPtr GetLong(IntPtr h,int index);
+    [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")]internal static extern IntPtr SetLong(IntPtr h,int index,IntPtr value);
+    [DllImport("user32.dll")]internal static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int cx,int cy,uint flags);
+    [DllImport("dwmapi.dll")]internal static extern int DwmSetWindowAttribute(IntPtr h,int attribute,ref int value,int size);
+    internal static void NoActivate(Window window){var h=new WindowInteropHelper(window).Handle;SetLong(h,-20,new IntPtr(GetLong(h,-20).ToInt64()|0x08000080));}
 }
