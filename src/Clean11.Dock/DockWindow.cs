@@ -127,8 +127,9 @@ sealed class DockWindow : Window {
         bool inFlyout=flyout!=null&&flyout.Contains(pointer.X,pointer.Y);bool edge=pointer.Y>=screen.Bounds.Bottom-3&&pointer.X>=bounds.Left&&pointer.X<=bounds.Right;
         if(flyout!=null&&!inside&&!inFlyout&&!menuOpen){if(outsideSince==DateTime.MinValue)outsideSince=now;if((now-outsideSince).TotalMilliseconds>400)CloseFlyout();}else outsideSince=DateTime.MinValue;
         bool overlap=false;DockNative.Rect fg;IntPtr foreground=DockNative.GetForegroundWindow();if(foreground!=hwnd&&DockNative.Class(foreground)!="Progman"&&DockNative.Class(foreground)!="WorkerW"&&DockNative.GetWindowRect(foreground,out fg))overlap=fg.Bottom>screen.Bounds.Bottom-(State.IconSize+48)*dpi&&fg.Right>bounds.Left&&fg.Left<bounds.Right;
-        bool shouldShow=!fullscreen&&DateTime.UtcNow>=Lease.NativeTrayUntil&&(menuOpen||inFlyout||(inside&&showing)||edge||State.Visibility=="Always"||(State.Visibility=="Intelligent"&&!overlap));
-        HideDock(!shouldShow);if(fullscreen)CloseFlyout();
+        bool fullscreenOverride=State.HideInFullscreen&&fullscreen;
+        bool shouldShow=!fullscreenOverride&&DateTime.UtcNow>=Lease.NativeTrayUntil&&(menuOpen||inFlyout||(inside&&showing)||edge||State.Visibility=="Always"||(State.Visibility=="Intelligent"&&!overlap));
+        HideDock(!shouldShow);if(fullscreenOverride)CloseFlyout();
         foreach(var tile in tiles)if(tile.Group!=null&&tile.Dot!=null){bool active=tile.Group.Windows.Any(w=>w.Handle==foreground);tile.Dot.Background=ActivityTheme.Brush(active?"Accent":"Muted",active?"#60CDFF":"#B8B8B8");}
     }
     void HideDock(bool hidden){if(showing==!hidden)return;showing=!hidden;RefreshGlass();if(hidden){hoverDelay.Stop();StopMotion();BeginAnimation(OpacityProperty,null);Opacity=0;IsHitTestVisible=false;DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()|0x20));}else{DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()&~0x20));IsHitTestVisible=true;if(State.ReducedMotion)Opacity=1;else BeginAnimation(OpacityProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(140)){FillBehavior=FillBehavior.Stop},HandoffBehavior.SnapshotAndReplace);Opacity=1;}}

@@ -83,3 +83,7 @@ Dock glass visibility is now independent of search and previews: Settings > Dock
 ### Unified glass visibility
 
 The separate dock slider has been removed. Settings > Overview & search > Glass visibility controls the dock, search, window previews and folder flyouts using one saved value and tint curve. Save settings updates the dock immediately; other surfaces read the value when opened. The existing shared value is preserved. This does not alter the external Seelen top bar or tray widget. Dock uses live blur; search and preview popups still use wallpaper frost, so the underlying material can differ despite matching tint opacity.
+
+### Fullscreen visibility override
+
+Settings > Dock separates Visibility (Never hide, Intelligent, Auto-hide) from **Hide in fullscreen apps and games**. The toggle defaults to On to preserve existing behavior. On forces the dock and its previews to hide in detected fullscreen apps; Off leaves the normal visibility rules in control. Never hide plus Off permits the dock over fullscreen content, subject to Windows/game presentation constraints. Intelligent still hides on overlap, and Auto-hide still requires the bottom edge. Click Apply to save. The existing internal Always value remains compatible with older settings.
