@@ -79,3 +79,7 @@ The dock surface uses Windows Desktop Acrylic (Windows 11 build 22621 or newer) 
 The dock now uses the blur-behind composition compatibility path rather than focus-dependent Desktop Acrylic. Its API acceptance and frame setup are logged privately in dock.log. Unsupported builds fall back to solid. The system controls blur radius; the glass slider controls tint. Visual output still requires manual confirmation.
 
 Dock glass visibility is now independent of search and previews: Settings > Dock > Dock glass visibility. It defaults to 85% for a lightly tinted surface. Higher values reveal more underlying content; this controls tint opacity, not Windows blur radius. The shared Frosted glass switch still enables/disables the material.
+
+### Unified glass visibility
+
+The separate dock slider has been removed. Settings > Overview & search > Glass visibility controls the dock, search, window previews and folder flyouts using one saved value and tint curve. Save settings updates the dock immediately; other surfaces read the value when opened. The existing shared value is preserved. This does not alter the external Seelen top bar or tray widget. Dock uses live blur; search and preview popups still use wallpaper frost, so the underlying material can differ despite matching tint opacity.

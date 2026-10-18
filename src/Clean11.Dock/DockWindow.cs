@@ -150,10 +150,10 @@ sealed class DockWindow : Window {
     internal void ShowSettings(){CloseFlyout();if(settings!=null){settings.Activate();return;}settings=new DockSettings(this);settings.Closed+=(s,e)=>settings=null;settings.Show();settings.Activate();}
     internal void RefreshGlass(){
         if(hwnd==IntPtr.Zero||disposed)return;
-        bool glass=true;try{glass=OverviewPreferences.Load().Glass;}catch{}
+        bool glass=true;int strength=60;try{var preferences=OverviewPreferences.Load();glass=preferences.Glass;strength=preferences.GlassStrength;}catch{}
         glass=FrostedMaterial.Enabled(glass);
         if(glassBackdrop==null)glassBackdrop=new DockBackdrop();
-        glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,glass,State.GlassVisibility);
+        glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,glass,strength);
         // Alpha zero is a native hit-test hole in a layered window. Retain one
         // alpha step across the whole bar so gaps receive continuous MouseMove.
         backdrop.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));backdrop.BorderThickness=new Thickness(0);

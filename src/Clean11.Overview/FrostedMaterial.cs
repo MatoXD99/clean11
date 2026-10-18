@@ -90,7 +90,7 @@ static class FrostedMaterial {
     internal static Brush Tint(){
         int strength=60;try{strength=OverviewPreferences.Load().GlassStrength;}catch{}
         var color=ActivityTheme.Brush("Surface","#23252A").Color;
-        color.A=(byte)Math.Round(255*(.94-.0064*Math.Max(0,Math.Min(100,strength))));
+        color.A=(byte)Math.Round(204*(1-Math.Max(0,Math.Min(100,strength))/100.0));
         var brush=new SolidColorBrush(color);brush.Freeze();return brush;
     }
     internal static Brush PanelBrush(Drawing.Rectangle bounds,Drawing.Rectangle screen,bool glass){
