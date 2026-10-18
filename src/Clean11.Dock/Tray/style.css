@@ -1,0 +1,108 @@
+/* Clean11 styling for the existing system-tray compatibility widget.
+   Theme variables are generated from ActivitiesTheme.json by Install.ps1. */
+.system-tray,
+.system-tray * { box-sizing: border-box; }
+.system-tray {
+  width: 276px;
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px !important;
+  background: var(--clean11-Surface, #23252a) !important;
+  color: var(--clean11-Text, #f1f2f5);
+  border: 1px solid var(--clean11-Border, #ffffff30) !important;
+  border-radius: var(--clean11-PanelRadius, 18px) !important;
+  box-shadow: none !important;
+  font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: #ffffff30 transparent;
+}
+.system-tray .system-tray-entry {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  height: 34px;
+  margin: 0;
+  padding: 0 3px;
+  list-style: none;
+  border-radius: var(--clean11-RowRadius, 10px);
+  transition: background-color 100ms ease;
+}
+.system-tray .system-tray-entry:hover,
+.system-tray .system-tray-entry:focus-within {
+  background: var(--clean11-Hover, #35383e);
+}
+.system-tray button.system-tray-item,
+.system-tray button.system-tray-item-pin {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  min-height: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit;
+  font: inherit;
+  border-radius: var(--clean11-ControlRadius, 8px);
+  cursor: default;
+}
+.system-tray button.system-tray-item {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 6px;
+  gap: 10px;
+}
+.system-tray .system-tray-item-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+}
+.system-tray .system-tray-item-icon-box .system-tray-item-icon,
+.system-tray .system-tray-item-icon-box svg {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+.system-tray .system-tray-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+}
+.system-tray button.system-tray-item-pin {
+  flex: 0 0 26px;
+  height: 26px;
+  padding: 5px;
+  justify-content: center;
+  color: var(--clean11-Muted, #a6abb5);
+  opacity: .55;
+  transition: opacity 100ms ease, background-color 100ms ease;
+}
+.system-tray .system-tray-item-pin svg { width: 14px; height: 14px; }
+.system-tray .system-tray-entry:hover .system-tray-item-pin,
+.system-tray .system-tray-entry:focus-within .system-tray-item-pin { opacity: 1; }
+.system-tray button.system-tray-item-pin:hover {
+  background: var(--clean11-Selected, #3c414b) !important;
+}
+.system-tray button:focus-visible {
+  outline: 2px solid var(--clean11-Accent, #60cdff);
+  outline-offset: -2px;
+}
+.system-tray .system-tray-entry[data-dragging="true"] { opacity: .6; }
+@media (prefers-reduced-motion: reduce) {
+  .system-tray * { transition: none !important; }
+}

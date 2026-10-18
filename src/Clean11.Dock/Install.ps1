@@ -17,5 +17,9 @@ New-Item -ItemType Directory -Path $Destination -Force | Out-Null
 Copy-Item -Path (Join-Path $PSScriptRoot 'bin/*') -Destination $Destination -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../THIRD-PARTY-NOTICES.md') -Destination $Destination -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../licenses') -Destination $Destination -Recurse -Force
+$trayWidget = Join-Path $env:APPDATA 'com.seelen.seelen-ui/widgets/tray-toggle-fix'
+if(Test-Path -LiteralPath (Join-Path $trayWidget 'metadata.yml')){
+    & (Join-Path $PSScriptRoot 'Tray/Install.ps1') -WidgetDirectory $trayWidget
+}
 Start-Process -FilePath $existing -WorkingDirectory ([Environment]::GetFolderPath('UserProfile')) -WindowStyle Hidden
 Write-Output 'Clean11 Dock installed and started. Settings are stored privately in LocalAppData/Clean11/Dock.'
