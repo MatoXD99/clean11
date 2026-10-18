@@ -43,7 +43,7 @@ static class Clean11Fluent {
     }
     internal static void Quiet(Ui.Button button) {
         button.Appearance=Ui.ControlAppearance.Transparent;button.Foreground=ActivityTheme.Brush("Muted","#A6ABB5");button.BorderThickness=new Thickness(0);button.Background=Brushes.Transparent;
-        button.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse(@"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='Button'><Border x:Name='Chrome' Background='Transparent' CornerRadius='10' Padding='{TemplateBinding Padding}'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#14FFFFFF'/></Trigger><Trigger Property='IsPressed' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#22FFFFFF'/></Trigger><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#22FFFFFF'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+        button.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse(@"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='Button'><Border x:Name='Chrome' Background='Transparent' CornerRadius='10' Padding='{TemplateBinding Padding}'><ContentPresenter HorizontalAlignment='{TemplateBinding HorizontalContentAlignment}' VerticalAlignment='{TemplateBinding VerticalContentAlignment}'/></Border><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#14FFFFFF'/></Trigger><Trigger Property='IsPressed' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#22FFFFFF'/></Trigger><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#22FFFFFF'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
         // IconButton normally uses the library's Icon slot; retain it in this simple template.
         if(button.Icon!=null){var symbol=button.Icon as Ui.SymbolIcon;string name=symbol==null?"":symbol.Symbol.ToString();if(name.StartsWith("Dismiss")||name.StartsWith("Settings"))button.Content=new TextBlock{Text=name.StartsWith("Dismiss")?"\uE711":"\uE713",FontFamily=new FontFamily("Segoe Fluent Icons"),FontSize=14,Foreground=ActivityTheme.Brush("Text","#F1F2F5")};else{button.Icon.Foreground=ActivityTheme.Brush("Muted","#A6ABB5");button.Content=button.Icon;}}
     }
@@ -54,7 +54,9 @@ static class Clean11Fluent {
     internal static void Menu(ContextMenu menu) {
         Apply(menu);menu.FontFamily=new FontFamily("Segoe UI Variable, Segoe UI");menu.FontSize=14;
         // Keep the library's complete keyboard, submenu, checkmark and icon template.
-        menu.SetResourceReference(Control.BackgroundProperty,"ApplicationBackgroundBrush");
-        menu.SetResourceReference(Control.ForegroundProperty,"TextFillColorPrimaryBrush");
+        var surface=new SolidColorBrush(FrostedMaterial.Tone);var ink=new SolidColorBrush(FrostedMaterial.Ink(false));
+        menu.Resources["ApplicationBackgroundBrush"]=surface;
+        menu.Resources["TextFillColorPrimaryBrush"]=ink;
+        menu.Background=surface;menu.Foreground=ink;menu.BorderBrush=FrostedMaterial.Edge();
     }
 }

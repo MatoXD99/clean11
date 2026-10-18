@@ -42,11 +42,11 @@ sealed class DockComposition : IDisposable {
     [DllImport("CoreMessaging.dll")]static extern int CreateDispatcherQueueController(QueueOptions options,[MarshalAs(UnmanagedType.IUnknown)]out object controller);
     static object queue;
     Compositor compositor;IDesktopTarget target;ContainerVisual root;SpriteVisual blur,tint;CompositionEffectBrush effect;CompositionLinearGradientBrush tintBrush;CompositionBackdropBrush sourceBrush;CompositionEffectFactory factory;
-    internal DockComposition(IntPtr window){
+    internal DockComposition(IntPtr window,bool aboveContent=true){
         if(queue==null){object controller;int hr=CreateDispatcherQueueController(new QueueOptions{Size=12,Thread=2,Apartment=2},out controller);if(hr<0)Marshal.ThrowExceptionForHR(hr);queue=controller;}
         try{
         compositor=new Compositor();IntPtr raw;
-        ((IDesktopCompositor)(object)compositor).CreateDesktopWindowTarget(window,true,out raw);
+        ((IDesktopCompositor)(object)compositor).CreateDesktopWindowTarget(window,aboveContent,out raw);
         try{target=(IDesktopTarget)Marshal.GetObjectForIUnknown(raw);}finally{Marshal.Release(raw);}
         root=compositor.CreateContainerVisual();target.Root=root;
         factory=compositor.CreateEffectFactory(new DockGaussian{Name="Blur",Source=new CompositionEffectSourceParameter("Backdrop")},new[]{"Blur.BlurAmount"});

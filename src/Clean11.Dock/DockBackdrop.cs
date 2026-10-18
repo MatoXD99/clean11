@@ -4,15 +4,38 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 
-// A non-layered backing window lets DWM sample the real desktop. The icon
-// window stays layered so magnification can extend beyond the dock surface.
+// Click-through companion for the dock's layered icon window.
 sealed class DockBackdrop : Window {
+    IntPtr handle;DockPopupMaterial material;
+    internal static bool AdjustableBlurAvailable;
+    internal DockBackdrop(){
+        Title="Clean11 dock material";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;
+        ShowInTaskbar=false;ShowActivated=false;Topmost=true;Background=Brushes.Transparent;IsHitTestVisible=false;
+        SourceInitialized+=(s,e)=>{
+            handle=new WindowInteropHelper(this).Handle;DockNative.NoActivate(this);
+            DockNative.SetLong(handle,-20,new IntPtr(DockNative.GetLong(handle,-20).ToInt64()|0x20));
+            int dark=1,round=2,border=-2;DockNative.DwmSetWindowAttribute(handle,20,ref dark,4);DockNative.DwmSetWindowAttribute(handle,33,ref round,4);DockNative.DwmSetWindowAttribute(handle,34,ref border,4);
+            material=new DockPopupMaterial(handle,true);
+        };
+        Closed+=(s,e)=>{if(material!=null)material.Dispose();};
+        new WindowInteropHelper(this).EnsureHandle();
+    }
+    internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
+        Left=left;Top=top;Width=Math.Max(1,width);Height=Math.Max(1,height);
+        Background=material.Update(width,height,dpi,glass,strength);
+        if(visible){if(!IsVisible)Show();DockNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);}
+        else Hide();
+    }
+}
+
+// Native glass below WPF content keeps live DWM thumbnails on a non-layered host.
+sealed class DockPopupMaterial : IDisposable {
     [StructLayout(LayoutKind.Sequential)] struct Margins {public int Left,Right,Top,Bottom;}
     [DllImport("dwmapi.dll")] static extern int DwmExtendFrameIntoClientArea(IntPtr window,ref Margins margins);
     [StructLayout(LayoutKind.Sequential)] struct AccentPolicy {public int State,Flags,GradientColor,AnimationId;}
     [StructLayout(LayoutKind.Sequential)] struct CompositionData {public int Attribute;public IntPtr Data;public int Size;}
     [DllImport("user32.dll")] [return:MarshalAs(UnmanagedType.Bool)] static extern bool SetWindowCompositionAttribute(IntPtr window,ref CompositionData data);
-    IntPtr handle;
+    readonly IntPtr handle; readonly bool aboveContent;
     string lastMaterialStatus="";
     bool SetBlur(bool enabled,int mode=3){
         // ACCENT_ENABLE_BLURBEHIND avoids desktop Acrylic's focus-dependent
@@ -26,27 +49,15 @@ sealed class DockBackdrop : Window {
         }catch(EntryPointNotFoundException){return false;}
         finally{Marshal.FreeHGlobal(memory);}
     }
-    internal static bool AdjustableBlurAvailable;
+    
     bool Acrylic;DockComposition composition;bool compositionFailed;
-    internal DockBackdrop(){
-        Title="Clean11 dock material";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;
-        ShowInTaskbar=false;ShowActivated=false;Topmost=true;Background=Brushes.Transparent;
-        IsHitTestVisible=false;
-        SourceInitialized+=(s,e)=>{
-            handle=new WindowInteropHelper(this).Handle;DockNative.NoActivate(this);
-            DockNative.SetLong(handle,-20,new IntPtr(DockNative.GetLong(handle,-20).ToInt64()|0x20));
-            HwndSource.FromHwnd(handle).CompositionTarget.BackgroundColor=Colors.Transparent;
-            int dark=1,round=2,border=-2;DockNative.DwmSetWindowAttribute(handle,20,ref dark,4);DockNative.DwmSetWindowAttribute(handle,33,ref round,4);DockNative.DwmSetWindowAttribute(handle,34,ref border,4);
-        };
-        Closed+=(s,e)=>{if(composition!=null)composition.Dispose();};
-        new WindowInteropHelper(this).EnsureHandle();
-    }
-    internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
-        Left=left;Top=top;Width=Math.Max(1,width);Height=Math.Max(1,height);
+
+    internal DockPopupMaterial(IntPtr window,bool above=false){handle=window;aboveContent=above;HwndSource.FromHwnd(handle).CompositionTarget.BackgroundColor=Colors.Transparent;}
+    internal Brush Update(double width,double height,double dpi,bool glass,int strength){
         int type=1;DockNative.DwmSetWindowAttribute(handle,38,ref type,4);
         int radius=8;try{radius=OverviewPreferences.Load().BlurRadius;}catch{}
         if(glass&&composition==null&&!compositionFailed){
-            try{composition=new DockComposition(handle);AdjustableBlurAvailable=true;DockLog.Write("Adjustable dock blur initialized.");}
+            try{composition=new DockComposition(handle,aboveContent);DockBackdrop.AdjustableBlurAvailable=true;DockLog.Write("Adjustable dock blur initialized.");}
             catch(Exception error){compositionFailed=true;DockLog.Write("Adjustable blur unavailable: "+error.ToString());}
         }
         bool custom=glass&&composition!=null;
@@ -60,8 +71,7 @@ sealed class DockBackdrop : Window {
             composition.SetVisible(custom);
             if(custom)composition.Update((float)(width*dpi),(float)(height*dpi),(float)(radius*dpi),tint.A);
         }
-        Background=custom?Brushes.Transparent:Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
-        if(visible){if(!IsVisible)Show();DockNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);}
-        else Hide();
+        return custom?Brushes.Transparent:Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
     }
+    public void Dispose(){if(composition!=null)composition.Dispose();}
 }
