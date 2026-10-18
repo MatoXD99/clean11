@@ -39,6 +39,16 @@ See [building the overview prototype](docs/BUILDING.md), [WPF UI redesign notes]
 
 The current prototype uses C# and WPF UI 4.3.0 with the existing .NET Framework backend. Search, favorites, window previews, shortcuts, and launch behavior are retained. It is not yet the complete desktop suite described by the roadmap.
 
+## Unified settings
+
+Open **Clean11 Settings** from Start, the overview gear, or a dock app's context menu.
+The WPF UI window groups Overview & search and Dock preferences into separate pages.
+Save overview changes with **Save overview settings**; save dock changes with **Apply**.
+
+**Live game previews** On enables live thumbnails for detected games; Off keeps game cards without live capture. Existing preferences are preserved. Overview changes apply on the next overview opening. Dock changes apply immediately.
+
+The Settings launcher reuses the dock's settings host; if the dock is stopped, opening Settings starts it. Overview preferences live separately from history and favorites in the current user's LocalAppData/Clean11/Overview directory. No user paths or preferences are committed. The dock installer adds the Start-menu shortcut. Build the dock and overview together when updating this feature.
+
 ## Credits
 
 Clean11 uses **[WPF UI](https://github.com/lepoco/wpfui)** as its UI library. WPF UI is created by **Leszek Pomianowski and the WPF UI Contributors** and is licensed under the **MIT License**.

@@ -23,3 +23,14 @@ if(Test-Path -LiteralPath (Join-Path $trayWidget 'metadata.yml')){
 }
 Start-Process -FilePath $existing -WorkingDirectory ([Environment]::GetFolderPath('UserProfile')) -WindowStyle Hidden
 Write-Output 'Clean11 Dock installed and started. Settings are stored privately in LocalAppData/Clean11/Dock.'
+
+$shortcutDirectory = Join-Path ([Environment]::GetFolderPath('Programs')) 'Clean11'
+New-Item -ItemType Directory -Path $shortcutDirectory -Force | Out-Null
+$shortcutShell = New-Object -ComObject WScript.Shell
+$shortcut = $shortcutShell.CreateShortcut((Join-Path $shortcutDirectory 'Clean11 Settings.lnk'))
+$shortcut.TargetPath = Join-Path $Destination 'Clean11.Settings.exe'
+$shortcut.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
+$shortcut.Description = 'Overview, search, and dock preferences'
+$shortcut.Save()
+[Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) | Out-Null
+[Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcutShell) | Out-Null

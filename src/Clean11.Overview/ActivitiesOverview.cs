@@ -416,6 +416,9 @@ partial class Overview : Form {
             state.ReducedMotion=saved.ReducedMotion;state.Glass=saved.Glass;state.GameFriendly=saved.GameFriendly;
         }catch(Exception e){Native.Log("Settings read: "+e.GetType().Name);}
     }
+    void LoadUnifiedPreferences(){
+        try{var p=OverviewPreferences.Load();state.MotionDuration=p.MotionDuration;state.PreviewColumns=p.PreviewColumns;state.ReducedMotion=p.ReducedMotion;state.Glass=p.Glass;state.GameFriendly=!p.LiveGamePreviews;}catch(Exception e){Native.Log("Unified preferences: "+e.GetType().Name);}
+    }
     void SaveState() {
         try {Directory.CreateDirectory(Path.GetDirectoryName(statePath));File.WriteAllText(statePath,new JavaScriptSerializer().Serialize(state));}
         catch(Exception e){Native.Log("Settings save: "+e.GetType().Name);}
@@ -675,7 +678,7 @@ partial class Overview : Form {
     void BeginOverview() {
         if(rendering)return;
         try {
-            HideSpotlight();previewOpacity=255;SettingsCatalog.Refresh(false);
+            LoadUnifiedPreferences();HideSpotlight();previewOpacity=255;SettingsCatalog.Refresh(false);
             previous=Native.GetForegroundWindow();desktop=Screen.FromPoint(Cursor.Position).Bounds;
             Bounds=desktop;scale=Math.Max(1,Native.GetDpiForWindow(Handle)/96f);
             reducedMotion=state.ReducedMotion||!SystemInformation.UIEffectsEnabled;
@@ -1259,8 +1262,8 @@ partial class Overview : Form {
     void DrawSettings(Graphics g) {
         FillRounded(g,settingsPanel,U(ActivityTheme.PanelRadius),ActivityTheme.Surface);StrokeRounded(g,settingsPanel,U(ActivityTheme.PanelRadius),ActivityTheme.Border,Math.Max(1,scale));
         LabelText(g,"Overview settings",new Rectangle(settingsPanel.Left+U(24),settingsPanel.Top+U(18),settingsPanel.Width-U(48),U(30)),19,foreground,true);
-        string[] names={"Animation duration","Windows per row","Reduced motion","Desktop wallpaper","Game friendly previews","Power menu","Add a portable application","Done"};
-        string[] values={state.MotionDuration+" ms","Up to "+state.PreviewColumns,state.ReducedMotion?"On":"Off",previewHost.LiveWallpaper?"Live · no tint":"Original · no tint",state.GameFriendly?"On":"Off","Open power controls","Choose .exe or shortcut","Close settings"};
+        string[] names={"Animation duration","Windows per row","Reduced motion","Desktop wallpaper","Live game previews","Power menu","Add a portable application","Done"};
+        string[] values={state.MotionDuration+" ms","Up to "+state.PreviewColumns,state.ReducedMotion?"On":"Off",previewHost.LiveWallpaper?"Live · no tint":"Original · no tint",state.GameFriendly?"Off":"On","Open power controls","Choose .exe or shortcut","Close settings"};
         for(int i=0;i<names.Length;i++) {
             int height=SettingsRowHeight();var row=new Rectangle(settingsPanel.Left+U(18),settingsPanel.Top+U(62)+i*height,settingsPanel.Width-U(36),height-U(6));
             FillRounded(g,row,U(ActivityTheme.RowRadius),ActivityTheme.Hover);
@@ -1438,6 +1441,8 @@ static class Program {
         if(args.Contains("--use-windows-search")){SearchMode.SetWindows(true);Signal(3);return 0;}
         if(args.Contains("--use-activities-search")){SearchMode.SetWindows(false);return 0;}
         if(args.Contains("--shutdown")){Signal(3);return 0;}
+        if(args.Contains("--power-menu")){DesktopActions.PowerMenu();return 0;}
+        if(args.Contains("--refresh-settings")){SettingsCatalog.Refresh(true);while(SettingsCatalog.IsRefreshing)System.Threading.Thread.Sleep(100);return 0;}
         if(args.Contains("--self-test"))return SelfTest();
         if(SearchMode.Windows){if(!args.Contains("--background"))SearchMode.OpenWindows();return 0;}
         string pipeName=PipeName();

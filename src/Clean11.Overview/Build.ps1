@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $compiler = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $framework = Split-Path $compiler
-$sources = @('ActivitiesOverview.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
+$sources = @('ActivitiesOverview.cs','OverviewPreferences.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
 $libraries = @(
  'WPF-UI.4.3.0/lib/net472/Wpf.Ui.dll',
  'WPF-UI.Abstractions.4.3.0/lib/net472/Wpf.Ui.Abstractions.dll',

@@ -69,12 +69,16 @@ static class DockProgram {
         if(args.Length>1&&args[0]=="--watch"){int pid;if(Int32.TryParse(args[1],out pid)){try{using(var parent=Process.GetProcessById(pid))parent.WaitForExit();}catch{}using(var guard=new Mutex(false,"Local\\Clean11.Dock")){bool acquired=false;try{acquired=guard.WaitOne(0);}catch(AbandonedMutexException){acquired=true;}if(acquired){ShellLease.Recover();guard.ReleaseMutex();}}}return;}
         if(args.Contains("--shutdown")){try{using(var signal=EventWaitHandle.OpenExisting(StopName))signal.Set();}catch{}return;}
         bool created;using(var mutex=new Mutex(true,"Local\\Clean11.Dock",out created)){
-            if(!created)return;ShellLease.Recover();
+            if(!created){if(args.Contains("--settings")){try{using(var signal=EventWaitHandle.OpenExisting("Local\\Clean11SettingsOpen"))signal.Set();}catch{}}return;}ShellLease.Recover();
             using(var stop=new EventWaitHandle(false,EventResetMode.ManualReset,StopName)){
                 Clean11Fluent.Ensure();var application=System.Windows.Application.Current;application.ShutdownMode=System.Windows.ShutdownMode.OnExplicitShutdown;
                 var state=DockState.Load();DockSettings.SetStartup(state.Startup);
                 Process.Start(new ProcessStartInfo(Executable,"--watch "+Process.GetCurrentProcess().Id){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)});
                 var dock=new DockWindow(state);application.MainWindow=dock;
+                var settingsSignal=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\Clean11SettingsOpen");
+                var settingsWait=ThreadPool.RegisterWaitForSingleObject(settingsSignal,(s,t)=>{try{application.Dispatcher.BeginInvoke((Action)dock.ShowSettings);}catch{}},null,-1,false);
+                application.Exit+=(s,e)=>{settingsWait.Unregister(null);settingsSignal.Dispose();};
+                if(args.Contains("--settings"))application.Dispatcher.BeginInvoke((Action)dock.ShowSettings);
                 var wait=ThreadPool.RegisterWaitForSingleObject(stop,(s,t)=>{try{application.Dispatcher.BeginInvoke((Action)(()=>application.Shutdown()));}catch{}},null,-1,true);
                 application.Exit+=(s,e)=>{wait.Unregister(null);dock.DisposeDock();};
                 try{

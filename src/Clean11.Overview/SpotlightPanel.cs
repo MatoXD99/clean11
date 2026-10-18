@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -239,7 +239,7 @@ sealed class SpotlightPanel : Window {
         SettingSlider(panel,"Windows per row",overview.SpotlightColumns,3,5,1,value=>overview.SetSpotlightPreference("columns",value),"");
         SettingToggle(panel,"Reduced motion",overview.SpotlightReduced,value=>overview.SetSpotlightPreference("reduced",value?1:0));
         SettingToggle(panel,"Frosted glass",overview.SpotlightGlass,value=>{overview.SetSpotlightPreference("glass",value?1:0);ApplyMaterial();});
-        SettingToggle(panel,"Game-friendly previews",overview.SpotlightGameFriendly,value=>overview.SetSpotlightPreference("game",value?1:0));
+        SettingToggle(panel,"Live game previews",!overview.SpotlightGameFriendly,value=>overview.SetSpotlightPreference("game",value?0:1));
         panel.Children.Add(Text("Search & applications",16,TextBrush));
         catalogLabel=Text(SettingsCatalog.Status,12,Muted);panel.Children.Add(catalogLabel);
         panel.Children.Add(SettingsButton("Refresh Windows Settings index",()=>SettingsCatalog.Refresh(true)));

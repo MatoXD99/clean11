@@ -91,6 +91,8 @@ partial class Overview {
     internal void SpotlightEscape(){if(settingsOpen){ExitSpotlightSettings();return;}if(search.Text.Length>0){search.Clear();LayoutCards();UpdateThumbnails(1);}else if(browsing)BrowseParent();else EndOverview(null);}
     internal void OpenSpotlightSettings(){
         if(diagnostic)return;
+        string unified=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","Clean11","Dock","Clean11.Settings.exe");
+        if(System.IO.File.Exists(unified)){EndOverview(()=>System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(unified){UseShellExecute=true,WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}));return;}
         if(spotlightUnavailable){settingsOpen=true;UpdateThumbnails(1);Redraw();return;}
         StopFocusHandoff();if(openingMotion)FinishEntrance(false);settingsOpen=true;returningFromSpotlight=false;
         if(spotlight==null)spotlight=new SpotlightPanel(this);search.Visible=false;searchHint.Visible=false;
@@ -103,6 +105,7 @@ partial class Overview {
         if(key=="reduced")state.ReducedMotion=value!=0;
         if(key=="glass")state.Glass=value!=0;
         if(key=="game")state.GameFriendly=value!=0;
+        new OverviewPreferences{MotionDuration=state.MotionDuration,PreviewColumns=state.PreviewColumns,ReducedMotion=state.ReducedMotion,Glass=state.Glass,LiveGamePreviews=!state.GameFriendly}.Save();
         reducedMotion=state.ReducedMotion||!SystemInformation.UIEffectsEnabled;SaveState();LayoutCards();UpdateThumbnails(1);Redraw();
     }
     internal void SpotlightPower(){EndOverview(DesktopActions.PowerMenu);}
