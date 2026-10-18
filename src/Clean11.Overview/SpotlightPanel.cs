@@ -81,7 +81,7 @@ sealed class SpotlightPanel : Window {
         Clean11Fluent.Apply(this);
         surface=new Border{CornerRadius=new CornerRadius(ActivityTheme.PanelRadius),BorderThickness=new Thickness(1),BorderBrush=(Brush)FindResource("Border"),Padding=new Thickness(0),SnapsToDevicePixels=true};Content=surface;
         root=new Grid{ClipToBounds=true};surface.Child=root;root.RowDefinitions.Add(new RowDefinition{Height=new GridLength(64)});root.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        root.SizeChanged+=(s,e)=>{root.Clip=new RectangleGeometry(new System.Windows.Rect(0,0,Math.Max(0,root.ActualWidth),Math.Max(0,root.ActualHeight)),Math.Max(0,ActivityTheme.PanelRadius-1),Math.Max(0,ActivityTheme.PanelRadius-1));};
+        root.SizeChanged+=(s,e)=>{root.Clip=new RectangleGeometry(new System.Windows.Rect(0,0,Math.Max(0,root.ActualWidth),Math.Max(0,root.ActualHeight)),7,7);};
         var header=new Grid{Margin=new Thickness(20,12,14,12)};header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(32)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(36)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(36)});
         
         var searchGlyph=Clean11Fluent.Icon("Search24",20);searchGlyph.Foreground=Muted;header.Children.Add(searchGlyph);
@@ -122,7 +122,7 @@ sealed class SpotlightPanel : Window {
         SourceInitialized+=(s,e)=>{hwnd=new WindowInteropHelper(this).Handle;dpi=Native.GetDpiForWindow(hwnd)/96.0;var source=HwndSource.FromHwnd(hwnd);if(source!=null)source.CompositionTarget.BackgroundColor=Colors.Transparent;ApplyMaterial();};
         Closing+=(s,e)=>{if(!dead){e.Cancel=true;overview.CloseSpotlight();}};
         Activated+=(s,e)=>dismissTimer.Stop();Deactivated+=(s,e)=>{if(IsVisible){dismissTimer.Stop();dismissTimer.Start();}};
-        dismissTimer.Tick+=(s,e)=>{dismissTimer.Stop();if(!IsVisible||dead)return;IntPtr focused=Native.GetForegroundWindow();if(focused==IntPtr.Zero)return;uint pid;Native.GetWindowThreadProcessId(focused,out pid);if(pid==(uint)Process.GetCurrentProcess().Id)return;IntPtr focusOwner=focused;for(int depth=0;depth<12&&focusOwner!=IntPtr.Zero;depth++){if(focusOwner==hwnd)return;focusOwner=Native.GetWindow(focusOwner,4);}overview.DismissSpotlightFocusLoss();};
+        dismissTimer.Tick+=(s,e)=>{dismissTimer.Stop();if(!IsVisible||dead||Environment.CommandLine.Contains("--inspect-ui"))return;IntPtr focused=Native.GetForegroundWindow();if(focused==IntPtr.Zero)return;uint pid;Native.GetWindowThreadProcessId(focused,out pid);if(pid==(uint)Process.GetCurrentProcess().Id)return;IntPtr focusOwner=focused;for(int depth=0;depth<12&&focusOwner!=IntPtr.Zero;depth++){if(focusOwner==hwnd)return;focusOwner=Native.GetWindow(focusOwner,4);}overview.DismissSpotlightFocusLoss();};
     }
     Ui.Button Button(string text,Action action){return Clean11Fluent.Button(text,action,false);}
     void RefreshInk(DependencyObject node,Brush oldText,Brush oldMuted){
@@ -202,7 +202,11 @@ sealed class SpotlightPanel : Window {
         if(reduced){Position(to);BodyOpacity(1);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeTo);fadingPreviews=false;var action=animationDone;animationDone=null;if(action!=null)action();}
         else{if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeFrom);BodyOpacity(bodyFrom);Position(from);animating=true;CompositionTarget.Rendering+=RenderAnimation;}}
     void Animate(){double t=Math.Min(1,clock.Elapsed.TotalMilliseconds/animationDuration);double eased=t*t*t*(t*(t*6-15)+10);Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),(int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));double reveal=bodyTo>bodyFrom?Math.Max(0,Math.Min(1,(t-.18)/.66)):Math.Min(1,t/.55);reveal=reveal*reveal*(3-2*reveal);BodyOpacity(bodyFrom+(bodyTo-bodyFrom)*reveal);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)Math.Round(fadeFrom+(fadeTo-fadeFrom)*eased));if(t>=1){StopAnimation();BodyOpacity(1);fadingPreviews=false;var done=animationDone;animationDone=null;if(done!=null)done();}}
-    void Position(Rect bounds){if(hwnd!=IntPtr.Zero){SetWindowPos(hwnd,IntPtr.Zero,bounds.X,bounds.Y,bounds.Width,bounds.Height,0x0014);dpi=Native.GetDpiForWindow(hwnd)/96.0;}else{Left=bounds.X/dpi;Top=bounds.Y/dpi;Width=bounds.Width/dpi;Height=bounds.Height/dpi;}FrostedMaterial.Position(material,bounds,materialScreen);UpdateGlass();}
+    void Position(Rect bounds){
+        if(hwnd!=IntPtr.Zero)dpi=Math.Max(96,Native.GetDpiForWindow(hwnd))/96.0;
+        Left=bounds.X/dpi;Top=bounds.Y/dpi;Width=bounds.Width/dpi;Height=bounds.Height/dpi;
+        UpdateLayout();UpdateGlass();
+    }
     internal void HidePanel(){StopAnimation();dismissTimer.Stop();animationDone=null;fadingPreviews=false;Expanded=false;previewGeneration++;if(activeMenu!=null)activeMenu.IsOpen=false;if(IsVisible)Hide();}
     internal void Shutdown(){HidePanel();materialTimer.Stop();if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}dead=true;dismissTimer.Dispose();Close();}
     internal void SaveOffscreenPreview(string file,bool settingsMode,IList<ResultItem> items,string query){

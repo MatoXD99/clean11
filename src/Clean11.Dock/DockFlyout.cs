@@ -13,12 +13,12 @@ sealed class DockFlyout : Window {
     readonly DockWindow dock; readonly Point anchor; readonly StackPanel body=new StackPanel();
     readonly List<IntPtr> thumbnails=new List<IntPtr>(); volatile bool closed; DockBackdrop popupBackdrop;
     DockFlyout(DockWindow owner,Point point){
-        dock=owner;anchor=point;Clean11Fluent.Apply(this);Title="Clean11 dock preview";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=false;ShowActivated=false;Topmost=true;Width=340;SizeToContent=SizeToContent.Height;MaxHeight=520;
+        dock=owner;anchor=point;Clean11Fluent.Apply(this);Title="Clean11 dock preview";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=Environment.CommandLine.Contains("--inspect-ui");ShowActivated=false;Topmost=true;Width=340;SizeToContent=SizeToContent.Height;MaxHeight=520;
         Background=ActivityTheme.Brush("Surface","#202020");Foreground=new SolidColorBrush(FrostedMaterial.Ink(false));
         // DWM owns the outer corner and border together. A second WPF rounded
         // border had a different radius and left a square wedge at each corner.
         Content=new Border{Padding=new Thickness(14),Background=Background,Child=body};
-        SourceInitialized+=(s,e)=>{DockNative.NoActivate(this);if(!AllowsTransparency)DockPopupMaterial.PrepareContentHost(new WindowInteropHelper(this).Handle);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);var edge=ActivityTheme.Hover;int borderColor=edge.R|(edge.G<<8)|(edge.B<<16);DockNative.DwmSetWindowAttribute(h,34,ref borderColor,4);};
+        SourceInitialized+=(s,e)=>{if(!Environment.CommandLine.Contains("--inspect-ui"))DockNative.NoActivate(this);if(!AllowsTransparency)DockPopupMaterial.PrepareContentHost(new WindowInteropHelper(this).Handle);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);var edge=ActivityTheme.Hover;int borderColor=edge.R|(edge.G<<8)|(edge.B<<16);DockNative.DwmSetWindowAttribute(h,34,ref borderColor,4);};
         ContentRendered+=(s,e)=>Place();Closed+=(s,e)=>{closed=true;if(popupBackdrop!=null)popupBackdrop.Close();foreach(var h in thumbnails)DockNative.DwmUnregisterThumbnail(h);thumbnails.Clear();};
     }
     void Place(){if(closed)return;var handle=new WindowInteropHelper(this).Handle;if(handle==IntPtr.Zero)return;double scale=Math.Max(96,DockNative.GetDpiForWindow(handle))/96.0;if(Double.IsNaN(anchor.X)||Double.IsNaN(anchor.Y)||Double.IsInfinity(anchor.X)||Double.IsInfinity(anchor.Y))return;var b=dock.Screen.WorkingArea;Left=Math.Max(b.Left/scale+8,Math.Min((b.Right/scale)-ActualWidth-8,anchor.X/scale-ActualWidth/2));Top=Math.Max(b.Top/scale+8,anchor.Y/scale-ActualHeight-8);

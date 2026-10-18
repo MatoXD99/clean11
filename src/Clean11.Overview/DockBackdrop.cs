@@ -21,10 +21,10 @@ sealed class DockBackdrop : Window {
         new WindowInteropHelper(this).EnsureHandle();
     }
     internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
-        Left=left;Top=top;Width=Math.Max(1,width);Height=Math.Max(1,height);
+        if(!visible){Hide();return;}
+        if(!IsVisible){Width=Math.Max(1,width);Height=Math.Max(1,height);Left=left;Top=top;Show();}
+        GlassNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);
         Background=material.Update(width,height,dpi,glass,strength);
-        if(visible){if(!IsVisible)Show();GlassNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);}
-        else Hide();
     }
 }
 

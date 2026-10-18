@@ -76,7 +76,7 @@ static class DockProgram {
         if(args.Contains("--shutdown")){try{using(var signal=EventWaitHandle.OpenExisting(StopName))signal.Set();}catch{}return;}
         bool created;using(var mutex=new Mutex(true,"Local\\Clean11.Dock",out created)){
             if(!created){if(args.Contains("--settings")){GrantSettingsForeground();for(int attempt=0;attempt<30;attempt++){try{using(var signal=EventWaitHandle.OpenExisting("Local\\Clean11SettingsOpen"))signal.Set();break;}catch(WaitHandleCannotBeOpenedException){Thread.Sleep(100);}catch(Exception error){DockLog.Write("Settings signal failed: "+error.GetType().Name);break;}}}return;}ShellLease.Recover();
-            using(var stop=new EventWaitHandle(false,EventResetMode.ManualReset,StopName)){
+            using(var stop=new EventWaitHandle(false,EventResetMode.AutoReset,StopName)){
                 Clean11Fluent.Ensure();var application=System.Windows.Application.Current;application.ShutdownMode=System.Windows.ShutdownMode.OnExplicitShutdown;
                 var state=DockState.Load();DockSettings.SetStartup(state.Startup);
                 Process.Start(new ProcessStartInfo(Executable,"--watch "+Process.GetCurrentProcess().Id){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)});
@@ -85,7 +85,7 @@ static class DockProgram {
                 var settingsWait=ThreadPool.RegisterWaitForSingleObject(settingsSignal,(s,t)=>{try{application.Dispatcher.BeginInvoke((Action)dock.ShowSettings);}catch{}},null,-1,false);
                 application.Exit+=(s,e)=>{settingsWait.Unregister(null);settingsSignal.Dispose();};
                 if(args.Contains("--settings"))application.Dispatcher.BeginInvoke((Action)dock.ShowSettings);
-                var wait=ThreadPool.RegisterWaitForSingleObject(stop,(s,t)=>{try{application.Dispatcher.BeginInvoke((Action)(()=>application.Shutdown()));}catch{}},null,-1,true);
+                var wait=ThreadPool.RegisterWaitForSingleObject(stop,(s,t)=>{try{application.Dispatcher.BeginInvoke((Action)(()=>dock.RequestShutdown()));}catch{}},null,-1,false);
                 application.Exit+=(s,e)=>{wait.Unregister(null);dock.DisposeDock();};
                 try{
                     DockLog.Write("Dock started; WPF UI 4.3.0; private settings loaded.");application.Run();

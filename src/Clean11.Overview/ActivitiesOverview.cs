@@ -287,7 +287,7 @@ partial class Overview : Form {
         diagnostic=diagnosticMode;
         Text="Clean11 Overview";
         FormBorderStyle=FormBorderStyle.None; StartPosition=FormStartPosition.Manual;
-        ShowInTaskbar=false; TopMost=true; AutoScaleMode=AutoScaleMode.None;
+        ShowInTaskbar=Environment.CommandLine.Contains("--inspect-ui"); TopMost=true; AutoScaleMode=AutoScaleMode.None;
         DoubleBuffered=true; KeyPreview=true; BackColor=TransparentBackdrop;TransparencyKey=TransparentBackdrop;
         previewHost=new PreviewHost(e=>OnMouseMove(e),e=>OnMouseDown(e),e=>OnMouseWheel(e));
         Owner=previewHost;

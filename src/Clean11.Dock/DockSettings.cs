@@ -64,7 +64,7 @@ sealed class DockSettings : Window {
     void Select(string name,string description){heading.Text=name;subtitle.Text=description;pageHost.Content=pages[name];foreach(var pair in navigation){pair.Value.Appearance=pair.Key==name?Ui.ControlAppearance.Secondary:Ui.ControlAppearance.Transparent;pair.Value.FontWeight=pair.Key==name?FontWeights.SemiBold:FontWeights.Normal;}}
     void Changed(){if(!ready)return;dirty=true;apply.IsEnabled=true;status.Text="Unsaved changes";}
     void Save(){
-        try{foreach(var change in changes)change();prefs.Save();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;status.Text="Saved. Search and overview update when opened.";}
+        try{foreach(var change in changes)change();prefs.Save();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;status.Text="Saved. Shared appearance updated.";}
         catch(Exception error){status.Text="Some changes could not be saved. Please try again.";DockLog.Write("Settings save failed: "+error.GetType().Name);dirty=true;apply.IsEnabled=true;}
     }
     StackPanel Page(){return new StackPanel{MaxWidth=780,HorizontalAlignment=HorizontalAlignment.Stretch};}
