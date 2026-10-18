@@ -59,3 +59,5 @@ A deferred preview placement could run after its window closed, yielding an inva
 Interactive computer-use checks covered settled dock appearance, hover enlargement, and a multi-window preview. Compilation succeeded. Mixed-DPI and game scenarios still need broader acceptance coverage. The `--inspect-ui` argument temporarily exposes shell windows to accessibility tools; ordinary launches keep their normal shell behavior.
 
 Icon extraction follows Microsoft's [IShellItemImageFactory guidance](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemimagefactory-getimage), including background extraction and releasing returned bitmap handles.
+
+Icon layout refinement: app and utility icons share the same frame and vertical baseline. Transparent shell-image padding is cropped on the icon worker, artwork fits a consistent inner box, running indicators use one size, and the dock has additional vertical breathing room. Dock hover uses magnification without an extra button-shaped background. The updated surface was inspected through computer use.

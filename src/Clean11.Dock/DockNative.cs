@@ -77,6 +77,16 @@ static class DockNative {
             if(h==IntPtr.Zero)return null;var image=Imaging.CreateBitmapSourceFromHIcon(h,Int32Rect.Empty,BitmapSizeOptions.FromWidthAndHeight(64,64));image.Freeze();return image;
         }catch{return null;}finally{if(h!=IntPtr.Zero)DestroyIcon(h);}
     }
+    // Shell artwork contains inconsistent transparent padding. Normalize its visible
+    // bounds once on the icon worker; every icon then fits the same optical box.
+    internal static BitmapSource NormalizeIcon(BitmapSource source){
+        if(source==null)return null;
+        try{var converted=new FormatConvertedBitmap(source,System.Windows.Media.PixelFormats.Bgra32,null,0);int width=converted.PixelWidth,height=converted.PixelHeight,stride=width*4;var pixels=new byte[stride*height];converted.CopyPixels(pixels,stride,0);int left=width,top=height,right=-1,bottom=-1;
+            for(int y=0;y<height;y++)for(int x=0;x<width;x++)if(pixels[y*stride+x*4+3]>24){left=Math.Min(left,x);top=Math.Min(top,y);right=Math.Max(right,x);bottom=Math.Max(bottom,y);}
+            if(right<left||bottom<top)return source;
+            var cropped=new CroppedBitmap(converted,new Int32Rect(left,top,right-left+1,bottom-top+1));cropped.Freeze();return cropped;
+        }catch{return source;}
+    }
     internal static string Downloads(){var id=new Guid("374DE290-123F-4565-9164-39C4925E467B");IntPtr p;if(SHGetKnownFolderPath(ref id,0,IntPtr.Zero,out p)!=0)return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);try{return Marshal.PtrToStringUni(p);}finally{Marshal.FreeCoTaskMem(p);}}
     internal static void NoActivate(Window window){var h=new WindowInteropHelper(window).Handle;SetLong(h,-20,new IntPtr(GetLong(h,-20).ToInt64()|0x08000080));HwndSource.FromHwnd(h).AddHook((IntPtr handle,int message,IntPtr w,IntPtr l,ref bool handled)=>{if(message==0x21){handled=true;return new IntPtr(3);}return IntPtr.Zero;});}
     [StructLayout(LayoutKind.Sequential)]internal struct ThumbnailProperties{public uint Flags;public Rect Destination,Source;public byte Opacity;[MarshalAs(UnmanagedType.Bool)]public bool Visible;[MarshalAs(UnmanagedType.Bool)]public bool ClientOnly;}
