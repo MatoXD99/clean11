@@ -11,20 +11,23 @@ using System.Windows.Media;
 sealed class DockFlyout : Window {
     internal string GroupKey;
     readonly DockWindow dock; readonly Point anchor; readonly StackPanel body=new StackPanel();
-    readonly List<IntPtr> thumbnails=new List<IntPtr>(); volatile bool closed; DockPopupMaterial popupMaterial;
+    readonly List<IntPtr> thumbnails=new List<IntPtr>(); volatile bool closed; DockBackdrop popupBackdrop;
     DockFlyout(DockWindow owner,Point point){
         dock=owner;anchor=point;Clean11Fluent.Apply(this);Title="Clean11 dock preview";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=false;ShowActivated=false;Topmost=true;Width=340;SizeToContent=SizeToContent.Height;MaxHeight=520;
         Background=ActivityTheme.Brush("Surface","#202020");Foreground=new SolidColorBrush(FrostedMaterial.Ink(false));
         // DWM owns the outer corner and border together. A second WPF rounded
         // border had a different radius and left a square wedge at each corner.
         Content=new Border{Padding=new Thickness(14),Background=Background,Child=body};
-        SourceInitialized+=(s,e)=>{DockNative.NoActivate(this);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);var edge=ActivityTheme.Hover;int borderColor=edge.R|(edge.G<<8)|(edge.B<<16);DockNative.DwmSetWindowAttribute(h,34,ref borderColor,4);};
-        ContentRendered+=(s,e)=>Place();Closed+=(s,e)=>{closed=true;if(popupMaterial!=null)popupMaterial.Dispose();foreach(var h in thumbnails)DockNative.DwmUnregisterThumbnail(h);thumbnails.Clear();};
+        SourceInitialized+=(s,e)=>{DockNative.NoActivate(this);if(!AllowsTransparency)DockPopupMaterial.PrepareContentHost(new WindowInteropHelper(this).Handle);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);var edge=ActivityTheme.Hover;int borderColor=edge.R|(edge.G<<8)|(edge.B<<16);DockNative.DwmSetWindowAttribute(h,34,ref borderColor,4);};
+        ContentRendered+=(s,e)=>Place();Closed+=(s,e)=>{closed=true;if(popupBackdrop!=null)popupBackdrop.Close();foreach(var h in thumbnails)DockNative.DwmUnregisterThumbnail(h);thumbnails.Clear();};
     }
     void Place(){if(closed)return;var handle=new WindowInteropHelper(this).Handle;if(handle==IntPtr.Zero)return;double scale=Math.Max(96,DockNative.GetDpiForWindow(handle))/96.0;if(Double.IsNaN(anchor.X)||Double.IsNaN(anchor.Y)||Double.IsInfinity(anchor.X)||Double.IsInfinity(anchor.Y))return;var b=dock.Screen.WorkingArea;Left=Math.Max(b.Left/scale+8,Math.Min((b.Right/scale)-ActualWidth-8,anchor.X/scale-ActualWidth/2));Top=Math.Max(b.Top/scale+8,anchor.Y/scale-ActualHeight-8);
         var prefs=OverviewPreferences.Load();
-        if(popupMaterial==null)popupMaterial=new DockPopupMaterial(handle);
-        Background=popupMaterial.Update(ActualWidth,ActualHeight,scale,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);
+        // The blur lives in a separate HWND below this content window. Never
+        // attach a backdrop brush to the HWND that paints text or thumbnails.
+        if(popupBackdrop==null)popupBackdrop=new DockBackdrop();
+        Background=Brushes.Transparent;
+        popupBackdrop.Update(handle,Left,Top,ActualWidth,ActualHeight,scale,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);
         ((Border)Content).Background=Background;
     }
     internal bool Contains(int x,int y){DockNative.Rect r;return !closed&&DockNative.GetWindowRect(new WindowInteropHelper(this).Handle,out r)&&x>=r.Left&&x<=r.Right&&y>=r.Top&&y<=r.Bottom;}
@@ -119,7 +122,7 @@ sealed class DockFlyout : Window {
         return (size/1073741824.0).ToString("0.#")+" GB";
     }
     internal DockFlyout(DockWindow owner,string path,Point point):this(owner,point){
-        Background=Brushes.Transparent;Width=440;MaxHeight=620;
+        AllowsTransparency=true;Background=Brushes.Transparent;Width=440;MaxHeight=620;
         var outer=(Border)Content;outer.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));outer.BorderThickness=new Thickness(0);outer.Padding=new Thickness(16);
         var header=new DockPanel{Margin=new Thickness(2,0,2,14)};
         var open=Clean11Fluent.Button("Open folder",()=>{dock.Open(path);dock.CloseFlyout();},false);Clean11Fluent.Quiet(open);open.Foreground=Foreground;open.Padding=new Thickness(10,6,10,6);DockPanel.SetDock(open,Dock.Right);header.Children.Add(open);

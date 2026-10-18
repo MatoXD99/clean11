@@ -52,6 +52,11 @@ sealed class DockPopupMaterial : IDisposable {
     
     bool Acrylic;DockComposition composition;bool compositionFailed;
 
+    internal static void PrepareContentHost(IntPtr window){
+        HwndSource.FromHwnd(window).CompositionTarget.BackgroundColor=Colors.Transparent;
+        var margins=new Margins{Left=-1,Right=-1,Top=-1,Bottom=-1};
+        DwmExtendFrameIntoClientArea(window,ref margins);
+    }
     internal DockPopupMaterial(IntPtr window,bool above=false){handle=window;aboveContent=above;HwndSource.FromHwnd(handle).CompositionTarget.BackgroundColor=Colors.Transparent;}
     internal Brush Update(double width,double height,double dpi,bool glass,int strength){
         int type=1;DockNative.DwmSetWindowAttribute(handle,38,ref type,4);
