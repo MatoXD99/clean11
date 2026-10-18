@@ -15,8 +15,10 @@ sealed class DockFlyout : Window {
     DockFlyout(DockWindow owner,Point point){
         dock=owner;anchor=point;Clean11Fluent.Apply(this);Title="Clean11 dock preview";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;ShowInTaskbar=false;ShowActivated=false;Topmost=true;Width=340;SizeToContent=SizeToContent.Height;MaxHeight=520;
         Background=ActivityTheme.Brush("Surface","#202020");Foreground=ActivityTheme.Brush("Text","#F5F5F5");
-        Content=new Border{CornerRadius=new CornerRadius(ActivityTheme.PanelRadius),Padding=new Thickness(14),BorderThickness=new Thickness(1),BorderBrush=ActivityTheme.Brush("Border","#505050"),Child=body};
-        SourceInitialized+=(s,e)=>{DockNative.NoActivate(this);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);};
+        // DWM owns the outer corner and border together. A second WPF rounded
+        // border had a different radius and left a square wedge at each corner.
+        Content=new Border{Padding=new Thickness(14),Background=Background,Child=body};
+        SourceInitialized+=(s,e)=>{DockNative.NoActivate(this);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);var edge=ActivityTheme.Hover;int borderColor=edge.R|(edge.G<<8)|(edge.B<<16);DockNative.DwmSetWindowAttribute(h,34,ref borderColor,4);};
         ContentRendered+=(s,e)=>Place();Closed+=(s,e)=>{closed=true;foreach(var h in thumbnails)DockNative.DwmUnregisterThumbnail(h);thumbnails.Clear();};
     }
     void Place(){if(closed)return;var handle=new WindowInteropHelper(this).Handle;if(handle==IntPtr.Zero)return;double scale=Math.Max(96,DockNative.GetDpiForWindow(handle))/96.0;if(Double.IsNaN(anchor.X)||Double.IsNaN(anchor.Y)||Double.IsInfinity(anchor.X)||Double.IsInfinity(anchor.Y))return;var b=dock.Screen.WorkingArea;Left=Math.Max(b.Left/scale+8,Math.Min((b.Right/scale)-ActualWidth-8,anchor.X/scale-ActualWidth/2));Top=Math.Max(b.Top/scale+8,anchor.Y/scale-ActualHeight-8);}
@@ -35,11 +37,11 @@ sealed class DockFlyout : Window {
         var count=new TextBlock{Text=group.Windows.Count+" open",Foreground=ActivityTheme.Brush("Muted","#A6ABB5"),FontSize=12,VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(count,Dock.Right);header.Children.Add(count);
         header.Children.Add(new TextBlock{Text=group.Name,FontSize=15,FontWeight=FontWeights.SemiBold,TextTrimming=TextTrimming.CharacterEllipsis});body.Children.Add(header);
-        var list=new StackPanel();windowScroll=new ScrollViewer{Content=list,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,CanContentScroll=false};body.Children.Add(windowScroll);
+        var list=new Grid();windowScroll=new ScrollViewer{Content=list,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,CanContentScroll=false};body.Children.Add(windowScroll);
         foreach(var item in group.Windows){
             var window=item;
             var cardBody=new StackPanel();
-            var card=new Border{Background=ActivityTheme.Brush("Card","#2B2E34"),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.RowRadius),Padding=new Thickness(8),Margin=new Thickness(0,0,0,8),Child=cardBody};
+            var card=new Border{Background=ActivityTheme.Brush("Card","#2B2E34"),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.RowRadius),Padding=new Thickness(8),Margin=new Thickness(4,0,4,8),Child=cardBody};
             var titleRow=new Grid{Margin=new Thickness(0,0,0,6)};titleRow.ColumnDefinitions.Add(new ColumnDefinition());titleRow.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
             var title=new TextBlock{Text=window.Title,TextTrimming=TextTrimming.CharacterEllipsis,FontSize=12,FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center};
             var open=Clean11Fluent.Button("",()=>{DockNative.Activate(window,false);dock.CloseFlyout();},false);Clean11Fluent.Quiet(open);open.Content=title;open.HorizontalContentAlignment=HorizontalAlignment.Stretch;open.Padding=new Thickness(3,0,5,0);open.MinWidth=0;open.MinHeight=28;open.ToolTip=window.Title;titleRow.Children.Add(open);
@@ -53,6 +55,12 @@ sealed class DockFlyout : Window {
         }
         SourceInitialized+=(s,e)=>{
             var destination=new WindowInteropHelper(this).Handle;double scale=Math.Max(96,DockNative.GetDpiForWindow(destination))/96.0;
+            double availableWidth=Math.Max(180,dock.Screen.WorkingArea.Width/scale-16);
+            int columns=Math.Max(1,Math.Min(Math.Min(owner.State.PreviewColumns,group.Windows.Count),(int)((availableWidth-46)/260)));
+            Width=Math.Min(availableWidth,columns*288+46);
+            for(int column=0;column<columns;column++)list.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
+            for(int row=0;row<(group.Windows.Count+columns-1)/columns;row++)list.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+            for(int index=0;index<list.Children.Count;index++){Grid.SetRow(list.Children[index],index/columns);Grid.SetColumn(list.Children[index],index%columns);}
             double available=Math.Max(180,(anchor.Y-dock.Screen.WorkingArea.Top)/scale-24);
             MaxHeight=Math.Min(760,available);windowScroll.MaxHeight=Math.Max(100,MaxHeight-64);
             // Register once per window. Hover never reallocates thumbnail resources.
@@ -93,7 +101,7 @@ sealed class DockFlyout : Window {
     }
     internal DockFlyout(DockWindow owner,string path,Point point):this(owner,point){
         body.Children.Add(new TextBlock{Text=System.IO.Path.GetFileName(path),FontSize=16,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,10)});
-        var list=new StackPanel();body.Children.Add(new ScrollViewer{Content=list,MaxHeight=350,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});var status=new TextBlock{Text="Loading folderâ€¦",Margin=new Thickness(8)};list.Children.Add(status);
+        var list=new StackPanel();body.Children.Add(new ScrollViewer{Content=list,MaxHeight=350,VerticalScrollBarVisibility=ScrollBarVisibility.Auto});var status=new TextBlock{Text="Loading folder…",Margin=new Thickness(8)};list.Children.Add(status);
         body.Children.Add(Clean11Fluent.Button("Open folder",()=>{dock.Open(path);dock.CloseFlyout();},false));
         ThreadPool.QueueUserWorkItem(_=>{string[] items;try{items=Directory.EnumerateFileSystemEntries(path).Take(200).OrderByDescending(Directory.Exists).ThenBy(System.IO.Path.GetFileName,StringComparer.CurrentCultureIgnoreCase).Take(60).ToArray();}catch{items=null;}Dispatcher.BeginInvoke((Action)(()=>{if(closed)return;list.Children.Clear();if(items==null||items.Length==0)list.Children.Add(new TextBlock{Text=items==null?"Folder is unavailable.":"This folder is empty.",Margin=new Thickness(8)});else foreach(string entry in items){string target=entry;var button=Clean11Fluent.Button(System.IO.Path.GetFileName(entry),()=>{dock.Open(target);dock.CloseFlyout();},false);Clean11Fluent.Quiet(button);button.HorizontalContentAlignment=HorizontalAlignment.Left;button.Margin=new Thickness(0,2,0,2);list.Children.Add(button);}UpdateLayout();Place();}));});
     }

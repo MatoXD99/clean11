@@ -138,6 +138,6 @@ sealed class DockWindow : Window {
     void MovePin(DockPin pin,int delta){int index=State.Pins.IndexOf(pin),next=Math.Max(0,Math.Min(State.Pins.Count-1,index+delta));State.Pins.RemoveAt(index);State.Pins.Insert(next,pin);State.Save();Rebuild();}
     ContextMenu SettingsMenu(){var menu=new ContextMenu();menu.Items.Add(Item("Clean11 Settings",ShowSettings));menu.Items.Add(Item("Open Task Manager",()=>Open("taskmgr.exe")));menu.Items.Add(Item("Background apps",()=>Lease.ShowTray()));menu.Items.Add(new Separator());menu.Items.Add(Item("Exit dock and restore previous bars",()=>Application.Current.Shutdown()));return menu;}
     internal void ShowSettings(){CloseFlyout();if(settings!=null){settings.Activate();return;}settings=new DockSettings(this);settings.Closed+=(s,e)=>settings=null;settings.Show();settings.Activate();}
-    internal void ApplySettings(){State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
+    internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
     internal void DisposeDock(){if(disposed)return;disposed=true;pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
 }
