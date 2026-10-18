@@ -2,7 +2,7 @@
 
 A cohesive desktop experience for Windows 11: fast search, window overview, a floating dock, a top bar, a customizable desktop, and one Settings app.
 
-**Status: planning only.** This repository contains the proposed product and engineering blueprint. It contains no application implementation or installer yet.
+**Status: overview/search prototype.** The repository now contains the existing overview/search application redesigned with WPF UI, alongside the full desktop-suite blueprint. The custom Dock, Top Bar, Desktop, and installer remain planned work.
 
 ## The experience
 
@@ -31,12 +31,18 @@ The existing overview layout is the starting point. Typing transforms its search
 
 Provide an EXE installer for individual users and an MSI distribution for managed installations. Public releases require the compatibility, privacy, license, and recovery gates in the plan.
 
-The project license is a decision for the project owner before code publication. No third-party code or assets are bundled in this planning repository.
+The project license is a decision for the project owner before code publication. Adopted third-party code and dependencies retain their own licenses and notices.
+
+## Current implementation
+
+See [building the overview prototype](docs/BUILDING.md) and [WPF UI redesign notes](docs/WPF-UI-REDESIGN.md).
+
+The current prototype uses C# and WPF UI 4.3.0 with the existing .NET Framework backend. Search, favorites, window previews, shortcuts, and launch behavior are retained. It is not yet the complete desktop suite described by the roadmap.
 
 ## Credits
 
-Clean11 has selected **[WPF UI](https://github.com/lepoco/wpfui)** as its planned UI library. WPF UI is created by **Leszek Pomianowski and the WPF UI Contributors** and is licensed under the **MIT License**.
+Clean11 uses **[WPF UI](https://github.com/lepoco/wpfui)** as its UI library. WPF UI is created by **Leszek Pomianowski and the WPF UI Contributors** and is licensed under the **MIT License**.
 
-Thank you to the WPF UI contributors for their open-source controls, themes, and navigation components. Integration is planned; no WPF UI package or source code is included yet.
+Thank you to the WPF UI contributors for their open-source controls, themes, and navigation components. Version 4.3.0 is restored from NuGet during development; compiled dependencies are not committed to source control.
 
 See [third-party notices](THIRD-PARTY-NOTICES.md) and the [full WPF UI license](licenses/WPF-UI-LICENSE.txt). Distributions containing WPF UI must retain its copyright and license notice.

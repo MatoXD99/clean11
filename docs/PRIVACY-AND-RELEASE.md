@@ -63,4 +63,4 @@ Recommended plan:
 - Clean-machine installer, upgrade, recovery, and uninstall reports.
 - Review public account, repository URL, release publisher, and author identity before adding a remote or publishing.
 
-This planning repository has no application code or installer to certify. Public publishing and signing remain later release actions.
+The repository now includes the reviewed overview/search prototype. The full-suite installer and release certification are not complete. Public publishing and signing remain later release actions.

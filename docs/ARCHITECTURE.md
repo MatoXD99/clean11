@@ -8,9 +8,9 @@ Known architectural debts include separate window/material layers, wallpaper-pre
 
 ## Proposed stack
 
-- C# on .NET 10 LTS, with stable Windows App SDK / WinUI 3 for Settings and ordinary UI. Pin supported SDK/runtime versions during implementation and service them thereafter. [.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core), [Windows App SDK release channels](https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/release-channels).
+- C# with WPF and WPF UI for Settings and ordinary UI, following the selected library direction. The current overview prototype uses WPF UI 4.3.0's net472 build on the existing .NET Framework runtime; this avoids a simultaneous backend migration. A later .NET 10 LTS migration remains separate work. Pin supported package/runtime versions during implementation. [.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core), [WPF UI](https://github.com/lepoco/wpfui).
 - Native Win32 and composition interop for desktop positioning, previews, work areas, activation, and low-level integration. Use a small native helper only where managed interop is insufficient.
-- An early renderer prototype decides the final host for shaped shell surfaces. Do not assume WinUI's normal application-window model alone satisfies arbitrary corner, transparency, and input requirements.
+- An early renderer prototype decides the final host for shaped shell surfaces. WPF UI supplies controls and theme resources; native composition, clipping, window previews, and shell integration still require dedicated implementation.
 - Local structured configuration, a versioned local index/cache, cancellation-aware background providers, and typed IPC contracts.
 - No browser runtime is required for core desktop surfaces. No always-elevated UI or privileged service by default.
 
