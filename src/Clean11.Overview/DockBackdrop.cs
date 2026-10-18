@@ -7,6 +7,7 @@ using System.Windows.Media;
 // Click-through companion for the dock's layered icon window.
 sealed class DockBackdrop : Window {
     IntPtr handle;DockPopupMaterial material;
+    internal void SetOwner(IntPtr owner){new WindowInteropHelper(this).Owner=owner;}
     internal static bool AdjustableBlurAvailable;
     internal DockBackdrop(){
         Title="Clean11 dock material";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;
@@ -82,6 +83,8 @@ sealed class DockPopupMaterial : IDisposable {
 }
 
 static class GlassNative {
+    [StructLayout(LayoutKind.Sequential)]internal struct Rect{public int Left,Top,Right,Bottom;}
+    [DllImport("user32.dll")]internal static extern bool GetWindowRect(IntPtr window,out Rect rect);
     [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")]internal static extern IntPtr GetLong(IntPtr h,int index);
     [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")]internal static extern IntPtr SetLong(IntPtr h,int index,IntPtr value);
     [DllImport("user32.dll")]internal static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int cx,int cy,uint flags);

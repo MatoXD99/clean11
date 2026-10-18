@@ -758,7 +758,7 @@ partial class Overview : Form {
     void FocusSearch() {
         if(shuttingDown||IsDisposed||!Visible||closing||settingsOpen)return;
         IntPtr focused=Native.GetForegroundWindow();
-        if(focused!=Handle&&!SpotlightOwnsForeground(focused))return;
+        if(focused!=Handle&&!SpotlightOwnsForeground(focused)){FocusSpotlightOverview(false);return;}
         if(FocusSpotlightOverview()){EnsurePointerInput();return;}
         search.Visible=true;searchHint.Visible=search.Text.Length==0;if(ActiveControl!=search)ActiveControl=search;
         if(!search.Focused)search.Focus();
@@ -812,7 +812,7 @@ partial class Overview : Form {
         if(shuttingDown||closing||!openingMotion)return;
         // Typing must not re-select the textbox or activate a form mid-TextChanged.
         // Claim any final focus while redraws are still deferred by MotionActive.
-        if(focusSearch&&Visible&&(Native.GetForegroundWindow()==Handle||SpotlightOwnsForeground(Native.GetForegroundWindow())))FocusSearch();
+        if(focusSearch&&Visible)FocusSearch();
         StopMotion();rendering=false;openingMotion=false;UpdateThumbnails(1);
         if(!TryPaintWindowMetadata(true))Redraw();
         if((DateTime.UtcNow-lastAppRefresh).TotalSeconds>=30)appRefreshDelay.Start();

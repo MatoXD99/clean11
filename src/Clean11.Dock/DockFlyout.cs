@@ -17,7 +17,7 @@ sealed class DockFlyout : Window {
         Background=ActivityTheme.Brush("Surface","#202020");Foreground=new SolidColorBrush(FrostedMaterial.Ink(false));
         // DWM owns the outer corner and border together. A second WPF rounded
         // border had a different radius and left a square wedge at each corner.
-        Content=new Border{Padding=new Thickness(14),Background=Background,Child=body};
+        Content=new Border{Padding=new Thickness(ActivityTheme.PanelPadding),Background=Background,Child=body};
         SourceInitialized+=(s,e)=>{if(!Environment.CommandLine.Contains("--inspect-ui"))DockNative.NoActivate(this);if(!AllowsTransparency)DockPopupMaterial.PrepareContentHost(new WindowInteropHelper(this).Handle);int round=2,dark=1;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,33,ref round,4);DockNative.DwmSetWindowAttribute(h,20,ref dark,4);var edge=ActivityTheme.Hover;int borderColor=edge.R|(edge.G<<8)|(edge.B<<16);DockNative.DwmSetWindowAttribute(h,34,ref borderColor,4);};
         ContentRendered+=(s,e)=>Place();Closed+=(s,e)=>{closed=true;if(popupBackdrop!=null)popupBackdrop.Close();foreach(var h in thumbnails)DockNative.DwmUnregisterThumbnail(h);thumbnails.Clear();};
     }
@@ -31,11 +31,7 @@ sealed class DockFlyout : Window {
         ((Border)Content).Background=Background;
     }
     internal bool Contains(int x,int y){DockNative.Rect r;return !closed&&DockNative.GetWindowRect(new WindowInteropHelper(this).Handle,out r)&&x>=r.Left&&x<=r.Right&&y>=r.Top&&y<=r.Bottom;}
-    static Brush PreviewCardBrush(){
-        bool glass=true;try{glass=OverviewPreferences.Load().Glass;}catch{}
-        if(!FrostedMaterial.Enabled(glass))return ActivityTheme.Brush("Card","#2B2E34");
-        var tone=FrostedMaterial.Tone;tone.A=65;return new SolidColorBrush(tone);
-    }
+    static Brush PreviewCardBrush(){return ActivityTheme.Brush("Card","#2B2E34");}
     sealed class WindowPreview {
         internal DockAppWindow Window;
         internal Border Surface;
@@ -49,7 +45,7 @@ sealed class DockFlyout : Window {
         var header=new DockPanel{Margin=new Thickness(2,0,2,12)};
         var count=new TextBlock{Text=group.Windows.Count+" open",Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),FontSize=12,VerticalAlignment=VerticalAlignment.Center};
         DockPanel.SetDock(count,Dock.Right);header.Children.Add(count);
-        header.Children.Add(new TextBlock{Text=group.Name,FontSize=15,FontWeight=FontWeights.SemiBold,TextTrimming=TextTrimming.CharacterEllipsis});body.Children.Add(header);
+        header.Children.Add(new TextBlock{Text=group.Name,FontSize=ActivityTheme.PopupTitleSize,FontWeight=FontWeights.SemiBold,TextTrimming=TextTrimming.CharacterEllipsis});body.Children.Add(header);
         var list=new Grid();windowScroll=new ScrollViewer{Content=list,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,CanContentScroll=false};body.Children.Add(windowScroll);
         foreach(var item in group.Windows){
             var window=item;
@@ -123,10 +119,10 @@ sealed class DockFlyout : Window {
     }
     internal DockFlyout(DockWindow owner,string path,Point point):this(owner,point){
         AllowsTransparency=true;Background=Brushes.Transparent;Width=440;MaxHeight=620;
-        var outer=(Border)Content;outer.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));outer.BorderThickness=new Thickness(0);outer.Padding=new Thickness(16);
+        var outer=(Border)Content;outer.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));outer.BorderThickness=new Thickness(0);outer.Padding=new Thickness(ActivityTheme.PanelPadding);
         var header=new DockPanel{Margin=new Thickness(2,0,2,14)};
         var open=Clean11Fluent.Button("Open folder",()=>{dock.Open(path);dock.CloseFlyout();},false);Clean11Fluent.Quiet(open);open.Foreground=Foreground;open.Padding=new Thickness(10,6,10,6);DockPanel.SetDock(open,Dock.Right);header.Children.Add(open);
-        var heading=new StackPanel();heading.Children.Add(new TextBlock{Text=System.IO.Path.GetFileName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar)),FontSize=18,FontWeight=FontWeights.SemiBold});
+        var heading=new StackPanel();heading.Children.Add(new TextBlock{Text=System.IO.Path.GetFileName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar)),FontSize=ActivityTheme.PopupTitleSize,FontWeight=FontWeights.SemiBold});
         var subtitle=new TextBlock{Text="Recent files",FontSize=12,Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),Margin=new Thickness(0,4,0,0)};heading.Children.Add(subtitle);header.Children.Add(heading);body.Children.Add(header);
         var list=new StackPanel();var scroll=new ScrollViewer{Content=list,MaxHeight=480,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};body.Children.Add(scroll);
         list.Children.Add(new TextBlock{Text="Loading recent files…",Margin=new Thickness(8,20,8,20),Foreground=new SolidColorBrush(FrostedMaterial.Ink(true))});
@@ -151,10 +147,10 @@ sealed class DockFlyout : Window {
                 foreach(var entry in recent){
                     var item=entry;var row=new Grid();row.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(64)});row.ColumnDefinitions.Add(new ColumnDefinition());
                     var picture=new Image{Width=48,Height=48,Stretch=Stretch.Uniform};pictures.Add(picture);
-                    var art=new Border{Width=56,Height=56,CornerRadius=new CornerRadius(8),Background=new SolidColorBrush(Color.FromArgb(18,128,152,176)),Child=picture,HorizontalAlignment=HorizontalAlignment.Left};row.Children.Add(art);
+                    var art=new Border{Width=56,Height=56,CornerRadius=new CornerRadius(ActivityTheme.ControlRadius),Background=new SolidColorBrush(Color.FromArgb(18,128,152,176)),Child=picture,HorizontalAlignment=HorizontalAlignment.Left};row.Children.Add(art);
                     var labels=new StackPanel{VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,4,0)};
                     labels.Children.Add(new TextBlock{Text=item.Name,FontSize=13,FontWeight=FontWeights.SemiBold,Foreground=new SolidColorBrush(FrostedMaterial.Ink(false)),TextTrimming=TextTrimming.CharacterEllipsis});
-                    labels.Children.Add(new TextBlock{Text=item.Detail,FontSize=11,Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),Margin=new Thickness(0,5,0,0),TextTrimming=TextTrimming.CharacterEllipsis});Grid.SetColumn(labels,1);row.Children.Add(labels);
+                    labels.Children.Add(new TextBlock{Text=item.Detail,FontSize=ActivityTheme.CaptionSize,Foreground=new SolidColorBrush(FrostedMaterial.Ink(true)),Margin=new Thickness(0,5,0,0),TextTrimming=TextTrimming.CharacterEllipsis});Grid.SetColumn(labels,1);row.Children.Add(labels);
                     var button=Clean11Fluent.Button("",()=>{dock.Open(item.Path);dock.CloseFlyout();},false);Clean11Fluent.Quiet(button);button.Content=row;button.HorizontalContentAlignment=HorizontalAlignment.Stretch;button.HorizontalAlignment=HorizontalAlignment.Stretch;button.Padding=new Thickness(8);button.Margin=new Thickness(0,0,0,4);button.ToolTip=item.Name+"\n"+item.Detail;System.Windows.Automation.AutomationProperties.SetName(button,item.Name);list.Children.Add(button);
                 }
                 UpdateLayout();Place();

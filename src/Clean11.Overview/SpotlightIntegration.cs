@@ -19,9 +19,9 @@ partial class Overview {
     internal bool SpotlightActive {get{return spotlight!=null&&spotlight.IsVisible&&spotlight.Expanded;}}
     bool SpotlightHeaderVisible {get{return spotlight!=null&&spotlight.IsVisible;}}
     bool SpotlightOwnsForeground(IntPtr foreground){return spotlight!=null&&spotlight.OwnsForeground(foreground);}
-    bool FocusSpotlightOverview(){
+    bool FocusSpotlightOverview(bool focus=true){
         if(diagnostic||spotlightUnavailable||closing||shuttingDown||!Visible)return false;
-        try{if(spotlight==null)spotlight=new SpotlightPanel(this);if(!SpotlightActive&&search.Text.Length==0&&!browsing)spotlight.ShowOverview(SpotlightOrigin);spotlight.FocusInput();search.Visible=false;searchHint.Visible=false;return true;}
+        try{if(spotlight==null)spotlight=new SpotlightPanel(this);if(!SpotlightActive&&search.Text.Length==0&&!browsing)spotlight.ShowOverview(SpotlightOrigin,focus);if(focus)spotlight.FocusInput();search.Visible=false;searchHint.Visible=false;return true;}
         catch(Exception error){spotlightUnavailable=true;Native.Log("Spotlight header unavailable; native input retained: "+error);return false;}
     }
     internal int SpotlightMotion {get{return state.MotionDuration;}}

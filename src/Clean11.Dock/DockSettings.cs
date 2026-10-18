@@ -17,6 +17,7 @@ sealed class DockSettings : Window {
     readonly Dictionary<string,StackPanel> pages=new Dictionary<string,StackPanel>();
     readonly Dictionary<string,Ui.Button> navigation=new Dictionary<string,Ui.Button>();
     readonly ContentControl pageHost=new ContentControl();
+    ScrollViewer pageScroll;DockBackdrop settingsGlass;readonly System.Windows.Threading.DispatcherTimer glassTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(120)};
     readonly TextBlock heading=new TextBlock(),subtitle=new TextBlock(),status=new TextBlock();
     readonly Ui.Button apply;
     bool ready,dirty;
@@ -26,12 +27,20 @@ sealed class DockSettings : Window {
 
     internal DockSettings(DockWindow owner){
         dock=owner;prefs=OverviewPreferences.Load();Clean11Fluent.Apply(this);
-        Title="Clean11 Settings";Width=1020;Height=780;MinWidth=800;MinHeight=560;
+        Title="Clean11 Settings";Width=1020;Height=780;MinWidth=800;MinHeight=560;WindowStyle=WindowStyle.None;AllowsTransparency=true;ResizeMode=ResizeMode.CanResizeWithGrip;
         WindowStartupLocation=WindowStartupLocation.CenterScreen;
         FontFamily=new FontFamily("Segoe UI Variable, Segoe UI");FontSize=14;
-        Background=ActivityTheme.Brush("Surface","#23252A");Foreground=ink;
-        var layout=new Grid();layout.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(210)});layout.ColumnDefinitions.Add(new ColumnDefinition());Content=layout;
-        var sidebar=new Grid{Background=new SolidColorBrush(Color.FromRgb(25,30,38))};layout.Children.Add(sidebar);
+        Background=Brushes.Transparent;SetResourceReference(ForegroundProperty,"Text");
+        var layout=new Grid();layout.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(210)});layout.ColumnDefinitions.Add(new ColumnDefinition());var windowRoot=new Grid();windowRoot.RowDefinitions.Add(new RowDefinition{Height=new GridLength(40)});windowRoot.RowDefinitions.Add(new RowDefinition());Grid.SetRow(layout,1);windowRoot.Children.Add(layout);
+        var caption=new Grid{Background=new SolidColorBrush(Color.FromArgb(1,0,0,0)),Margin=new Thickness(16,0,8,0)};
+        caption.MouseLeftButtonDown+=(s,e)=>{if(e.ClickCount==2)WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;else if(e.ButtonState==System.Windows.Input.MouseButtonState.Pressed)DragMove();};
+        var captionText=Label("Clean11 Settings",12,true);captionText.VerticalAlignment=VerticalAlignment.Center;caption.Children.Add(captionText);
+        var captionButtons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var minimize=Clean11Fluent.IconButton("Minimize","Subtract24",()=>WindowState=WindowState.Minimized);Clean11Fluent.Quiet(minimize);captionButtons.Children.Add(minimize);
+        var closeCaption=Clean11Fluent.IconButton("Close settings","Dismiss24",Close);Clean11Fluent.Quiet(closeCaption);captionButtons.Children.Add(closeCaption);caption.Children.Add(captionButtons);windowRoot.Children.Add(caption);
+        var shell=new Border{BorderThickness=new Thickness(1),BorderBrush=FrostedMaterial.Edge(),CornerRadius=new CornerRadius(ActivityTheme.GlassRadius),Background=new SolidColorBrush(Color.FromArgb(1,0,0,0)),Child=windowRoot};
+        windowRoot.SizeChanged+=(s,e)=>windowRoot.Clip=new RectangleGeometry(new Rect(0,0,Math.Max(0,windowRoot.ActualWidth),Math.Max(0,windowRoot.ActualHeight)),ActivityTheme.GlassRadius-1,ActivityTheme.GlassRadius-1);Content=shell;
+        var sidebar=new Grid{Background=ActivityTheme.Brush("Card","#2B2E34")};layout.Children.Add(sidebar);sidebar.SetResourceReference(Panel.BackgroundProperty,"Card");
         sidebar.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});sidebar.RowDefinitions.Add(new RowDefinition());sidebar.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         var brand=new StackPanel{Margin=new Thickness(24,28,20,30)};brand.Children.Add(Label("Clean11",25,false));brand.Children.Add(Label("Make your desktop yours",12,true));sidebar.Children.Add(brand);
         var nav=new StackPanel{Margin=new Thickness(12,0,12,0)};Grid.SetRow(nav,1);sidebar.Children.Add(nav);
@@ -39,11 +48,11 @@ sealed class DockSettings : Window {
         var main=new Grid();Grid.SetColumn(main,1);layout.Children.Add(main);
         main.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});main.RowDefinitions.Add(new RowDefinition());main.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
         var titleArea=new StackPanel{Margin=new Thickness(30,26,30,20)};
-        heading.FontSize=28;heading.FontWeight=FontWeights.SemiBold;heading.Foreground=ink;
-        subtitle.Foreground=muted;subtitle.FontSize=13;subtitle.TextWrapping=TextWrapping.Wrap;subtitle.Margin=new Thickness(0,6,0,0);titleArea.Children.Add(heading);titleArea.Children.Add(subtitle);main.Children.Add(titleArea);
-        var scroll=new ScrollViewer{Content=pageHost,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(30,0,24,24)};Grid.SetRow(scroll,1);main.Children.Add(scroll);
+        heading.FontSize=28;heading.FontWeight=FontWeights.SemiBold;heading.SetResourceReference(TextBlock.ForegroundProperty,"Text");
+        subtitle.SetResourceReference(TextBlock.ForegroundProperty,"Muted");subtitle.FontSize=13;subtitle.TextWrapping=TextWrapping.Wrap;subtitle.Margin=new Thickness(0,6,0,0);titleArea.Children.Add(heading);titleArea.Children.Add(subtitle);main.Children.Add(titleArea);
+        var scroll=new ScrollViewer{Content=pageHost,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(30,0,24,24)};pageScroll=scroll;Grid.SetRow(scroll,1);main.Children.Add(scroll);
         var footer=new Grid{Margin=new Thickness(30,16,30,18)};footer.ColumnDefinitions.Add(new ColumnDefinition());footer.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});footer.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
-        status.Foreground=muted;status.Text="All changes saved";status.TextWrapping=TextWrapping.Wrap;status.VerticalAlignment=VerticalAlignment.Center;status.Margin=new Thickness(0,0,16,0);footer.Children.Add(status);
+        status.SetResourceReference(TextBlock.ForegroundProperty,"Muted");status.Text="All changes saved";status.TextWrapping=TextWrapping.Wrap;status.VerticalAlignment=VerticalAlignment.Center;status.Margin=new Thickness(0,0,16,0);footer.Children.Add(status);
         var close=Clean11Fluent.Button("Close",Close,false);close.Margin=new Thickness(0,0,10,0);Grid.SetColumn(close,1);footer.Children.Add(close);
         apply=Clean11Fluent.Button("Apply changes",Save,true);apply.IsEnabled=false;Grid.SetColumn(apply,2);footer.Children.Add(apply);
         var footerFrame=new Border{BorderThickness=new Thickness(0,1,0,0),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),Child=footer};Grid.SetRow(footerFrame,2);main.Children.Add(footerFrame);
@@ -52,24 +61,33 @@ sealed class DockSettings : Window {
         AddPage(nav,"Overview","Window previews and movement, tuned to your workflow.",OverviewPage());
         AddPage(nav,"Apps & search","Manage shortcuts and discover Windows settings.",AppsPage());
         AddPage(nav,"System","Startup, desktop integration, and useful controls.",SystemPage());
+        glassTimer.Tick+=(s,e)=>UpdateGlass();
+        IsVisibleChanged+=(s,e)=>{if(IsVisible){glassTimer.Start();UpdateGlass();}else{glassTimer.Stop();if(settingsGlass!=null)settingsGlass.Hide();}};
+        Closed+=(s,e)=>{glassTimer.Stop();if(settingsGlass!=null){settingsGlass.Close();settingsGlass=null;}};
         ready=true;Select("Appearance","Materials, clarity, and a little personality.");UpdateSample();
-        SourceInitialized+=(s,e)=>{int dark=1,round=2;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,20,ref dark,4);DockNative.DwmSetWindowAttribute(h,33,ref round,4);};
+        SourceInitialized+=(s,e)=>{int dark=FrostedMaterial.Light?0:1,round=2;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,20,ref dark,4);DockNative.DwmSetWindowAttribute(h,33,ref round,4);};
         Loaded+=(s,e)=>{var area=SystemParameters.WorkArea;MaxHeight=area.Height;MaxWidth=area.Width;};
         Closing+=(s,e)=>{if(!dirty)return;var answer=MessageBox.Show(this,"Apply your changes before closing?","Unsaved settings",MessageBoxButton.YesNoCancel,MessageBoxImage.Question);if(answer==MessageBoxResult.Cancel)e.Cancel=true;else if(answer==MessageBoxResult.Yes){Save();e.Cancel=dirty;}};
     }
-    TextBlock Label(string text,double size,bool secondary){return new TextBlock{Text=text,FontSize=size,Foreground=secondary?muted:ink,TextWrapping=TextWrapping.Wrap};}
-    void AddPage(Panel nav,string name,string description,StackPanel content){
-        pages[name]=content;var button=Clean11Fluent.Button(name,()=>Select(name,description),false);button.HorizontalContentAlignment=HorizontalAlignment.Left;button.Height=44;button.Margin=new Thickness(0,0,0,6);button.Padding=new Thickness(14,0,14,0);navigation[name]=button;nav.Children.Add(button);
+    void UpdateGlass(){
+        if(!IsVisible||WindowState==WindowState.Minimized){if(settingsGlass!=null)settingsGlass.Hide();return;}
+        var h=new WindowInteropHelper(this).Handle;DockNative.Rect bounds;if(h==IntPtr.Zero||!DockNative.GetWindowRect(h,out bounds))return;
+        if(settingsGlass==null)settingsGlass=new DockBackdrop();double scale=Math.Max(96,DockNative.GetDpiForWindow(h))/96.0;
+        var current=OverviewPreferences.Load();settingsGlass.Update(h,bounds.Left/scale,bounds.Top/scale,bounds.Width/scale,bounds.Height/scale,scale,true,FrostedMaterial.Enabled(current.Glass),current.GlassStrength);
     }
-    void Select(string name,string description){heading.Text=name;subtitle.Text=description;pageHost.Content=pages[name];foreach(var pair in navigation){pair.Value.Appearance=pair.Key==name?Ui.ControlAppearance.Secondary:Ui.ControlAppearance.Transparent;pair.Value.FontWeight=pair.Key==name?FontWeights.SemiBold:FontWeights.Normal;}}
+    TextBlock Label(string text,double size,bool secondary){var textBlock=new TextBlock{Text=text,FontSize=size,TextWrapping=TextWrapping.Wrap};textBlock.SetResourceReference(TextBlock.ForegroundProperty,secondary?"Muted":"Text");return textBlock;}
+    void AddPage(Panel nav,string name,string description,StackPanel content){
+        pages[name]=content;var button=Clean11Fluent.Button(name,()=>Select(name,description),false);button.HorizontalContentAlignment=HorizontalAlignment.Left;button.HorizontalAlignment=HorizontalAlignment.Stretch;button.Height=44;button.Margin=new Thickness(0,0,0,6);button.Padding=new Thickness(14,0,14,0);navigation[name]=button;nav.Children.Add(button);
+    }
+    void Select(string name,string description){heading.Text=name;subtitle.Text=description;pageHost.Content=pages[name];if(pageScroll!=null)pageScroll.ScrollToTop();foreach(var pair in navigation){pair.Value.Appearance=pair.Key==name?Ui.ControlAppearance.Secondary:Ui.ControlAppearance.Transparent;pair.Value.FontWeight=pair.Key==name?FontWeights.SemiBold:FontWeights.Normal;}}
     void Changed(){if(!ready)return;dirty=true;apply.IsEnabled=true;status.Text="Unsaved changes";}
     void Save(){
-        try{foreach(var change in changes)change();prefs.Save();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;status.Text="Saved. Shared appearance updated.";}
+        try{foreach(var change in changes)change();prefs.Save();Clean11Fluent.RefreshPalette(this);UpdateGlass();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;status.Text="Saved. Shared appearance updated.";}
         catch(Exception error){status.Text="Some changes could not be saved. Please try again.";DockLog.Write("Settings save failed: "+error.GetType().Name);dirty=true;apply.IsEnabled=true;}
     }
     StackPanel Page(){return new StackPanel{MaxWidth=780,HorizontalAlignment=HorizontalAlignment.Stretch};}
     void Section(Panel panel,string title){var text=Label(title,12,true);text.FontWeight=FontWeights.SemiBold;text.Margin=new Thickness(2,panel.Children.Count==0?0:20,0,10);panel.Children.Add(text);}
-    Border Card(UIElement content){return new Border{Background=ActivityTheme.Brush("Card","#2B2E34"),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(12),Padding=new Thickness(18,16,18,16),Margin=new Thickness(0,0,0,8),Child=content};}
+    Border Card(UIElement content){var card=new Border{Background=ActivityTheme.Brush("Card","#2B2E34"),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.RowRadius),Padding=new Thickness(16),Margin=new Thickness(0,0,0,8),Child=content};card.SetResourceReference(Border.BackgroundProperty,"Card");card.SetResourceReference(Border.BorderBrushProperty,"Divider");return card;}
     void Row(Panel panel,string title,string description,FrameworkElement control){
         var grid=new Grid();grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
         var labels=new StackPanel{VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,22,0)};var name=Label(title,14,false);name.FontWeight=FontWeights.SemiBold;labels.Children.Add(name);
@@ -90,15 +108,15 @@ sealed class DockSettings : Window {
         sampleScene=new Grid{Height=138,ClipToBounds=true,Background=new LinearGradientBrush(Color.FromRgb(36,109,153),Color.FromRgb(114,67,141),25)};
         var wave=new System.Windows.Shapes.Ellipse{Width=300,Height=100,Fill=new SolidColorBrush(Color.FromRgb(100,203,201)),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(-40,15,0,0)};sampleScene.Children.Add(wave);
         var sampleText=new StackPanel{Margin=new Thickness(20)};sampleTitle=Label("A calmer desktop",18,false);sampleTitle.FontWeight=FontWeights.SemiBold;sampleDetail=Label("Clean11 glass · material preview",12,true);sampleDetail.Margin=new Thickness(0,5,0,0);sampleText.Children.Add(sampleTitle);sampleText.Children.Add(sampleDetail);
-        sampleGlass=new Border{CornerRadius=new CornerRadius(16),BorderThickness=new Thickness(1),Margin=new Thickness(22,20,22,20),Child=sampleText};
-        var sample=new Grid();sample.Children.Add(sampleScene);sample.Children.Add(sampleGlass);var frame=Card(sample);frame.Padding=new Thickness(0);frame.SizeChanged+=(s,e)=>frame.Clip=new RectangleGeometry(new Rect(0,0,Math.Max(0,frame.ActualWidth),Math.Max(0,frame.ActualHeight)),12,12);panel.Children.Add(frame);
+        sampleGlass=new Border{CornerRadius=new CornerRadius(ActivityTheme.GlassRadius),BorderThickness=new Thickness(1),Margin=new Thickness(22,20,22,20),Child=sampleText};
+        var sample=new Grid();sample.Children.Add(sampleScene);sample.Children.Add(sampleGlass);var frame=Card(sample);frame.Padding=new Thickness(0);frame.SizeChanged+=(s,e)=>frame.Clip=new RectangleGeometry(new Rect(0,0,Math.Max(0,frame.ActualWidth),Math.Max(0,frame.ActualHeight)),ActivityTheme.RowRadius,ActivityTheme.RowRadius);panel.Children.Add(frame);
         Section(panel,"MATERIAL");
-        glass=Toggle(panel,"Frosted glass","Shared by the dock, search, and preview panels.",prefs.Glass,v=>prefs.Glass=v);
+        glass=Toggle(panel,"Frosted glass","One material for Settings, dock, search, and window previews.",prefs.Glass,v=>prefs.Glass=v);
         material=Choice(panel,"Material","Midnight is smoked blue. Pearl is a pale frost.",new[]{"Midnight","Pearl"},prefs.GlassStyle,v=>prefs.GlassStyle=v);
         visibility=Range(panel,"Glass visibility","Reveal more of the background while keeping a gentle tint.",prefs.GlassStrength,0,100,5,"%",v=>prefs.GlassStrength=(int)v);
         blur=Range(panel,"Blur radius","Lower values keep background shapes sharper.",prefs.BlurRadius,0,40,1," px",v=>prefs.BlurRadius=(int)v);
         material.SelectionChanged+=(s,e)=>UpdateSample();visibility.ValueChanged+=(s,e)=>UpdateSample();blur.ValueChanged+=(s,e)=>UpdateSample();glass.Checked+=(s,e)=>UpdateSample();glass.Unchecked+=(s,e)=>UpdateSample();
-        if(!DockBackdrop.AdjustableBlurAvailable){var note=Label("The dock is using system blur fallback. Radius currently affects search and previews only.",12,true);note.Margin=new Thickness(2,8,2,0);panel.Children.Add(note);}return panel;
+        if(!DockBackdrop.AdjustableBlurAvailable){var note=Label("System blur fallback is active. Adjustable radius requires composition support.",12,true);note.Margin=new Thickness(2,8,2,0);panel.Children.Add(note);}return panel;
     }
     void UpdateSample(){if(material==null||visibility==null||blur==null||glass==null)return;bool light=(string)material.SelectedItem=="Pearl",enabled=glass.IsChecked==true;
         material.IsEnabled=visibility.IsEnabled=blur.IsEnabled=enabled;
@@ -109,7 +127,7 @@ sealed class DockSettings : Window {
     StackPanel DockPage(){var p=Page();var state=dock.State;Section(p,"BEHAVIOR");
         Choice(p,"Visibility","Choose when the dock stays on screen.",new[]{"Never hide","Intelligent","Auto-hide"},state.Visibility=="Always"?"Never hide":state.Visibility,v=>state.Visibility=v=="Never hide"?"Always":v);
         Toggle(p,"Hide in fullscreen","Overrides visibility in fullscreen apps and games.",state.HideInFullscreen,v=>state.HideInFullscreen=v);
-        Choice(p,"Display","Choose the monitor that hosts the dock.",Forms.Screen.AllScreens.Select(x=>x.DeviceName).ToArray(),dock.Screen.DeviceName,v=>state.Monitor=v);
+        var screens=Forms.Screen.AllScreens;var displayNames=screens.Select((x,i)=>"Display "+(i+1)+(x.Primary?" · Primary":"")).ToArray();Choice(p,"Display","Choose the monitor that hosts the dock.",displayNames,displayNames[Array.FindIndex(screens,x=>x.DeviceName==dock.Screen.DeviceName)],v=>state.Monitor=screens[Array.IndexOf(displayNames,v)].DeviceName);
         Section(p,"SIZE & MOVEMENT");Range(p,"Icon size","Base size before magnification.",state.IconSize,28,64,2," px",v=>state.IconSize=(int)v);
         Range(p,"Magnification","How much app icons grow under the pointer.",state.Magnification,1,1.7,.05,"×",v=>state.Magnification=v);
         Choice(p,"Preview columns","Maximum windows in each preview row.",new[]{1,2,3,4,5},state.PreviewColumns,v=>state.PreviewColumns=v);

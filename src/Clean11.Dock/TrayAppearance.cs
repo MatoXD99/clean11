@@ -7,7 +7,7 @@ using System.Windows;
 // The tray keeps its existing shell actions; Clean11 owns its appearance.
 sealed class TrayAppearance : IDisposable {
     const string Title="Clean11 Background Apps";
-    DockBackdrop backdrop;DateTime next=DateTime.MinValue;
+    DockBackdrop backdrop;DateTime next=DateTime.MinValue;IntPtr inspectionWindow,inspectionStyle;
     internal static void Sync(){
         try{
             string directory=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),"com.seelen.seelen-ui","widgets","tray-toggle-fix");
@@ -35,9 +35,13 @@ sealed class TrayAppearance : IDisposable {
         DockNative.EnumWindows((window,p)=>{if(DockNative.Title(window)==Title&&DockNative.IsWindowVisible(window)){uint pid;DockNative.GetWindowThreadProcessId(window,out pid);try{using(var process=Process.GetProcessById((int)pid))if(process.ProcessName=="seelen-ui")found=window;}catch{}}return true;},IntPtr.Zero);
         DockNative.Rect rect;
         if(found==IntPtr.Zero||!DockNative.GetWindowRect(found,out rect)){if(backdrop!=null)backdrop.Hide();return;}
+        if(Environment.CommandLine.Contains("--inspect-ui")&&inspectionWindow!=found){
+            if(inspectionWindow!=IntPtr.Zero)DockNative.SetLong(inspectionWindow,-20,inspectionStyle);
+            inspectionWindow=found;inspectionStyle=DockNative.GetLong(found,-20);DockNative.SetLong(found,-20,new IntPtr((inspectionStyle.ToInt64()&~0x80)|0x40000));
+        }
         if(backdrop==null)backdrop=new DockBackdrop();
         double dpi=Math.Max(96,DockNative.GetDpiForWindow(found))/96.0;var prefs=OverviewPreferences.Load();
         backdrop.Update(found,rect.Left/dpi,rect.Top/dpi,rect.Width/dpi,rect.Height/dpi,dpi,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);
     }
-    public void Dispose(){if(backdrop!=null){backdrop.Close();backdrop=null;}}
+    public void Dispose(){if(inspectionWindow!=IntPtr.Zero){DockNative.SetLong(inspectionWindow,-20,inspectionStyle);inspectionWindow=IntPtr.Zero;}if(backdrop!=null){backdrop.Close();backdrop=null;}}
 }

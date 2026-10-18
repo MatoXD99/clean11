@@ -117,7 +117,7 @@ sealed class SpotlightPanel : Window {
         list.PreviewMouseLeftButtonUp+=(s,e)=>{var container=ItemsControl.ContainerFromElement(list,e.OriginalSource as DependencyObject) as ListBoxItem;var row=container==null?null:container.DataContext as SpotlightRow;if(row!=null&&pressedRowKey==overview.SpotlightKey(row.Item)){int index=list.ItemContainerGenerator.IndexFromContainer(container);overview.LaunchSpotlight(index);e.Handled=true;}pressedRowKey=null;};
         list.ContextMenu=new ContextMenu();
         list.ContextMenuOpening+=(s,e)=>{e.Handled=true;var element=e.OriginalSource as DependencyObject;var container=ItemsControl.ContainerFromElement(list,element) as ListBoxItem;if(container==null)return;int index=list.ItemContainerGenerator.IndexFromContainer(container);list.SelectedIndex=index;var menu=new ContextMenu{PlacementTarget=container};FrostedMaterial.StyleMenu(menu,overview.SpotlightGlass);foreach(string command in overview.SpotlightCommands(index)){string action=command;var item=new MenuItem{Header=action};item.Click+=(ss,ee)=>overview.InvokeSpotlightCommand(index,action);menu.Items.Add(item);}activeMenu=menu;menu.IsOpen=true;};
-        materialTimer.Tick+=(s,e)=>{if(IsVisible&&MaterialKey(OverviewPreferences.Load())!=materialKey)ApplyMaterial();};
+        materialTimer.Tick+=(s,e)=>{if(!IsVisible)return;if(MaterialKey(OverviewPreferences.Load())!=materialKey)ApplyMaterial();else UpdateGlass();};
         IsVisibleChanged+=(s,e)=>{if(IsVisible){ApplyMaterial();materialTimer.Start();}else{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Hide();}};
         SourceInitialized+=(s,e)=>{hwnd=new WindowInteropHelper(this).Handle;dpi=Native.GetDpiForWindow(hwnd)/96.0;var source=HwndSource.FromHwnd(hwnd);if(source!=null)source.CompositionTarget.BackgroundColor=Colors.Transparent;ApplyMaterial();};
         Closing+=(s,e)=>{if(!dead){e.Cancel=true;overview.CloseSpotlight();}};
@@ -139,11 +139,12 @@ sealed class SpotlightPanel : Window {
     void UpdateGlass(){
         if(hwnd==IntPtr.Zero||!IsVisible){if(glassBackdrop!=null)glassBackdrop.Hide();return;}
         if(glassPreferences==null)glassPreferences=OverviewPreferences.Load();
-        if(glassBackdrop==null)glassBackdrop=new DockBackdrop();
+        if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(overview.Handle);}
         var bounds=Current();
         glassBackdrop.Update(hwnd,bounds.Left/dpi,bounds.Top/dpi,bounds.Width/dpi,bounds.Height/dpi,dpi,true,FrostedMaterial.Enabled(glassPreferences.Glass),glassPreferences.GlassStrength);
     }
     internal void ApplyMaterial(){
+        Clean11Fluent.RefreshPalette(this);
         // Styles may freeze their brushes. Replace resources rather than mutate them.
         var oldText=TextBrush;var oldMuted=Muted;
         TextBrush=new SolidColorBrush(FrostedMaterial.Ink(false));Muted=new SolidColorBrush(FrostedMaterial.Ink(true));
@@ -155,7 +156,7 @@ sealed class SpotlightPanel : Window {
         glassPreferences=OverviewPreferences.Load();materialKey=MaterialKey(glassPreferences);
         materialScreen=Forms.Screen.FromHandle(overview.Handle).Bounds;material=null;
         surface.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));root.Background=Brushes.Transparent;
-        surface.CornerRadius=new CornerRadius(8);
+        surface.CornerRadius=new CornerRadius(ActivityTheme.GlassRadius);
         UpdateGlass();
     }
     internal void WarmHidden(){
@@ -166,11 +167,11 @@ sealed class SpotlightPanel : Window {
     Rect Target(bool settingsMode){var work=Forms.Screen.FromHandle(overview.Handle).WorkingArea;double factor=Native.GetDpiForWindow(overview.Handle)/96.0;int width=Math.Min(work.Width-40,(int)((settingsMode?760:800)*factor));int height=Math.Min(work.Height-70,(int)((settingsMode?600:474)*factor));return new Rect(work.Left+(work.Width-width)/2,work.Top+(work.Height-height)/2,Math.Max(320,width),Math.Max(240,height));}
     internal bool OwnsForeground(IntPtr foreground){return IsVisible&&foreground==hwnd;}
     internal void FocusInput(){if(IsVisible&&!settings&&!input.IsKeyboardFocusWithin){Activate();input.Focus();Keyboard.Focus(input);}}
-    internal void ShowOverview(Rect origin){
+    internal void ShowOverview(Rect origin,bool focus=true){
         input.Visibility=Visibility.Visible;settingsHeading.Visibility=Visibility.Collapsed;
         if(Expanded)return;StopAnimation();settings=false;input.IsReadOnly=false;searchPage.Visibility=Visibility.Collapsed;settingsPage.Visibility=Visibility.Collapsed;settingsFooter.Visibility=Visibility.Collapsed;RefreshOverview();
         synchronizing=true;input.Text="";synchronizing=false;placeholder.Visibility=input.Text.Length==0?Visibility.Visible:Visibility.Collapsed;
-        Position(origin);if(!IsVisible){ApplyMaterial();Show();}FocusInput();
+        Position(origin);if(!IsVisible){ApplyMaterial();ShowActivated=focus;Show();ShowActivated=true;}if(focus)FocusInput();
     }
     internal void ShowSearch(string query,Rect origin,bool reduced){
         input.Visibility=Visibility.Visible;settingsHeading.Visibility=Visibility.Collapsed;

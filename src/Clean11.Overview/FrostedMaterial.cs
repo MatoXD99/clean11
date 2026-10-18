@@ -89,6 +89,21 @@ static class FrostedMaterial {
     }
     internal static bool Light {get{try{var prefs=OverviewPreferences.Load();return prefs.GlassStyle=="Pearl"&&Enabled(prefs.Glass);}catch{return false;}}}
     internal static Color Ink(bool secondary){return Light?(secondary?Color.FromRgb(62,79,96):Color.FromRgb(19,35,51)):(secondary?Color.FromRgb(186,203,219):Color.FromRgb(244,249,255));}
+    // Semantic colours are shared by controls, Settings, search and dock panels.
+    internal static bool TryColor(string key,out Color color){
+        bool light=Light;color=Colors.Transparent;
+        switch(key){
+            case "Text":color=Ink(false);break;
+            case "Muted":color=Ink(true);break;
+            case "Surface":case "DockSurface":color=Tone;break;
+            case "Card":color=light?Color.FromArgb(125,244,249,255):Color.FromArgb(115,35,49,66);break;
+            case "Hover":color=light?Color.FromArgb(28,26,67,100):Color.FromArgb(38,115,171,207);break;
+            case "Selected":color=light?Color.FromArgb(55,28,107,166):Color.FromArgb(85,84,157,204);break;
+            case "Divider":case "Border":color=light?Color.FromArgb(45,27,61,89):Color.FromArgb(42,208,230,246);break;
+            case "Track":color=light?Color.FromArgb(70,41,70,94):Color.FromArgb(80,180,203,222);break;
+            default:return false;
+        }return true;
+    }
     internal static Color Tone {get{return Light?Color.FromRgb(222,235,244):Color.FromRgb(23,36,51);}}
     internal static byte TintAlpha(int strength){return (byte)Math.Round(255*(.22+.58*(1-Math.Max(0,Math.Min(100,strength))/100.0)));}
     internal static Brush Edge(){

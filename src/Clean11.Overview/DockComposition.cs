@@ -56,7 +56,10 @@ sealed class DockComposition : IDisposable {
         }catch{Dispose();throw;}
     }
     internal void SetVisible(bool visible){root.IsVisible=visible;}
+    float lastWidth=-1,lastHeight=-1,lastRadius=-1;byte lastAlpha;System.Windows.Media.Color lastTone;
     internal void Update(float width,float height,float radius,byte alpha){
+        var currentTone=FrostedMaterial.Tone;if(width==lastWidth&&height==lastHeight&&radius==lastRadius&&alpha==lastAlpha&&currentTone==lastTone)return;
+        lastWidth=width;lastHeight=height;lastRadius=radius;lastAlpha=alpha;lastTone=currentTone;
         root.Size=blur.Size=tint.Size=new Vector2(width,height);
         effect.Properties.InsertScalar("Blur.BlurAmount",Math.Max(0,Math.Min(250,radius/3f)));
         var color=FrostedMaterial.Tone;
