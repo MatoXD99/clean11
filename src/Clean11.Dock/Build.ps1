@@ -24,3 +24,5 @@ if($LASTEXITCODE -ne 0){throw 'Clean11 Dock build failed'}
 
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:SettingsProgram "/out:$out/Clean11.Settings.exe" (Join-Path $PSScriptRoot "SettingsProgram.cs")
 if($LASTEXITCODE -ne 0){throw "Clean11 Settings launcher build failed"}
+
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Tray/style.css") -Destination (Join-Path $out "tray.css") -Force

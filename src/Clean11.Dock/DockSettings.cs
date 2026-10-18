@@ -64,7 +64,7 @@ sealed class DockSettings : Window {
     void Select(string name,string description){heading.Text=name;subtitle.Text=description;pageHost.Content=pages[name];foreach(var pair in navigation){pair.Value.Appearance=pair.Key==name?Ui.ControlAppearance.Secondary:Ui.ControlAppearance.Transparent;pair.Value.FontWeight=pair.Key==name?FontWeights.SemiBold:FontWeights.Normal;}}
     void Changed(){if(!ready)return;dirty=true;apply.IsEnabled=true;status.Text="Unsaved changes";}
     void Save(){
-        try{foreach(var change in changes)change();prefs.Save();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();dirty=false;apply.IsEnabled=false;status.Text="Saved. Search and overview update when opened.";}
+        try{foreach(var change in changes)change();prefs.Save();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;status.Text="Saved. Search and overview update when opened.";}
         catch(Exception error){status.Text="Some changes could not be saved. Please try again.";DockLog.Write("Settings save failed: "+error.GetType().Name);dirty=true;apply.IsEnabled=true;}
     }
     StackPanel Page(){return new StackPanel{MaxWidth=780,HorizontalAlignment=HorizontalAlignment.Stretch};}
@@ -102,7 +102,7 @@ sealed class DockSettings : Window {
     }
     void UpdateSample(){if(material==null||visibility==null||blur==null||glass==null)return;bool light=(string)material.SelectedItem=="Pearl",enabled=glass.IsChecked==true;
         material.IsEnabled=visibility.IsEnabled=blur.IsEnabled=enabled;
-        var color=light?Color.FromRgb(222,235,244):Color.FromRgb(23,36,51);color.A=enabled?FrostedMaterial.TintAlpha((int)visibility.Value):(byte)255;sampleGlass.Background=new SolidColorBrush(color);
+        var color=light?Color.FromRgb(222,235,244):Color.FromRgb(23,36,51);color.A=enabled?FrostedMaterial.TintAlpha((int)visibility.Value):(byte)255;sampleGlass.Background=FrostedMaterial.Tint(color,(int)visibility.Value,enabled);
         sampleGlass.BorderBrush=new SolidColorBrush(Color.FromArgb(95,225,245,255));sampleTitle.Foreground=new SolidColorBrush(light?Color.FromRgb(19,35,51):Color.FromRgb(244,249,255));sampleDetail.Foreground=sampleTitle.Foreground;
         sampleScene.Effect=new BlurEffect{Radius=enabled?blur.Value:0,RenderingBias=RenderingBias.Performance};
     }

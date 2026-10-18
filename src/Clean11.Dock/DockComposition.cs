@@ -58,7 +58,7 @@ sealed class DockComposition : IDisposable {
     internal void SetVisible(bool visible){root.IsVisible=visible;}
     internal void Update(float width,float height,float radius,byte alpha){
         root.Size=blur.Size=tint.Size=new Vector2(width,height);
-        effect.Properties.InsertScalar("Blur.BlurAmount",Math.Max(0,Math.Min(40,radius)));
+        effect.Properties.InsertScalar("Blur.BlurAmount",Math.Max(0,Math.Min(250,radius/3f)));
         var color=FrostedMaterial.Tone;
         tintBrush.ColorStops.Clear();
         tintBrush.ColorStops.Add(compositor.CreateColorGradientStop(0,Windows.UI.Color.FromArgb(alpha,(byte)Math.Min(255,color.R+13),(byte)Math.Min(255,color.G+15),(byte)Math.Min(255,color.B+16))));

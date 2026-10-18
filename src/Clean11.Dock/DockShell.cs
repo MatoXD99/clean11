@@ -80,7 +80,7 @@ static class DockProgram {
                 Clean11Fluent.Ensure();var application=System.Windows.Application.Current;application.ShutdownMode=System.Windows.ShutdownMode.OnExplicitShutdown;
                 var state=DockState.Load();DockSettings.SetStartup(state.Startup);
                 Process.Start(new ProcessStartInfo(Executable,"--watch "+Process.GetCurrentProcess().Id){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)});
-                var dock=new DockWindow(state);application.MainWindow=dock;
+                TrayAppearance.Sync();var dock=new DockWindow(state);application.MainWindow=dock;
                 var settingsSignal=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\Clean11SettingsOpen");
                 var settingsWait=ThreadPool.RegisterWaitForSingleObject(settingsSignal,(s,t)=>{try{application.Dispatcher.BeginInvoke((Action)dock.ShowSettings);}catch{}},null,-1,false);
                 application.Exit+=(s,e)=>{settingsWait.Unregister(null);settingsSignal.Dispose();};

@@ -58,3 +58,9 @@ Thank you to the WPF UI contributors for their open-source controls, themes, and
 See [third-party notices](THIRD-PARTY-NOTICES.md) and the [full WPF UI license](licenses/WPF-UI-LICENSE.txt). Distributions containing WPF UI must retain its copyright and license notice.
 
 The Settings redesign uses a 210px navigation sidebar, shared setting cards, wrapping descriptions, numeric slider readouts, independently scrolling content, and a fixed save footer. Closing with pending edits offers Apply, Discard (No), or Cancel. Material controls now live under Appearance; startup and bottom-bar integration live under System.
+
+### Shared appearance
+
+Appearance is stored once in the overview preferences: material, glass visibility, and blur radius. Dock and popup composition use the same tint gradient as the Settings material preview. The radius is expressed as a visual blur radius; the composition renderer converts it to Gaussian standard deviation instead of treating radius and sigma as interchangeable.
+
+The existing background-apps widget retains its tray actions. Clean11 supplies its compact theme and a separate native glass backdrop, with the widget above it so labels and icons remain sharp. Saving Appearance reloads the local tray resource without restarting the whole compatibility host. The adapter targets only the identified local tray widget and does not alter other widgets.

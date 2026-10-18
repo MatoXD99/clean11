@@ -120,7 +120,9 @@ sealed class DockWindow : Window {
     void Animate(object sender,EventArgs args){long now=motion.ElapsedMilliseconds;double step=1-Math.Exp(-Math.Max(1,now-lastFrame)/45.0);lastFrame=now;bool pendingFrame=false;foreach(var tile in tiles){double scale=tile.Scale.ScaleX+(tile.Target-tile.Scale.ScaleX)*step;double shift=tile.Shift.X+(tile.TargetShift-tile.Shift.X)*step;pendingFrame|=Math.Abs(scale-tile.Target)>.002||Math.Abs(shift-tile.TargetShift)>.05;tile.Scale.ScaleX=tile.Scale.ScaleY=scale;tile.Shift.X=shift;}if(!pendingFrame)StopMotion();}
     void StopMotion(){if(moving)CompositionTarget.Rendering-=Animate;moving=false;}
     void Position(){var b=Screen.Bounds;Left=(b.Left+(b.Width-Width*dpi)/2)/dpi;Top=(b.Bottom-Height*dpi-10*dpi)/dpi;}
+    readonly TrayAppearance trayAppearance=new TrayAppearance();
     void UpdateVisibility(){
+        trayAppearance.Update();
         if(disposed||hwnd==IntPtr.Zero)return;var now=DateTime.UtcNow;var screen=Screen;
         if((now-lastLease).TotalSeconds>1){Lease.Update(screen,State.TakeOver);appbar.Configure(screen,(int)((State.IconSize+42)*dpi),State.Visibility=="Always"&&!Lease.ExistingDock);lastLease=now;}
         bool fullscreen=DockNative.Fullscreen(screen,hwnd);DockNative.Point pointer;DockNative.GetCursorPos(out pointer);DockNative.Rect bounds;DockNative.GetWindowRect(hwnd,out bounds);bool inside=pointer.X>=bounds.Left&&pointer.X<=bounds.Right&&pointer.Y>=bounds.Top&&pointer.Y<=screen.Bounds.Bottom;
@@ -178,5 +180,5 @@ sealed class DockWindow : Window {
         foreach(var tile in tiles){if(tile.Group==null){var frame=tile.Icon as Border;if(frame!=null){var glyph=frame.Child as Ui.SymbolIcon;if(glyph!=null)glyph.Foreground=new SolidColorBrush(FrostedMaterial.Ink(true));}}}
     }
     internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
-    internal void DisposeDock(){if(disposed)return;disposed=true;if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
+    internal void DisposeDock(){trayAppearance.Dispose();if(disposed)return;disposed=true;if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
 }

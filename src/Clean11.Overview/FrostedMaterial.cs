@@ -99,7 +99,10 @@ static class FrostedMaterial {
     }
     internal static Brush Tint(){
         int strength=60;try{strength=OverviewPreferences.Load().GlassStrength;}catch{}
-        var color=Tone;color.A=TintAlpha(strength);
+        return Tint(Tone,strength,true);
+    }
+    internal static Brush Tint(Color tone,int strength,bool enabled){
+        var color=tone;color.A=enabled?TintAlpha(strength):(byte)255;
         var top=color;top.R=(byte)Math.Min(255,top.R+13);top.G=(byte)Math.Min(255,top.G+15);top.B=(byte)Math.Min(255,top.B+16);
         var brush=new LinearGradientBrush(top,color,new Point(0,0),new Point(.2,1));brush.Freeze();return brush;
     }
