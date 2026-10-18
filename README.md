@@ -42,8 +42,8 @@ The current prototype uses C# and WPF UI 4.3.0 with the existing .NET Framework 
 ## Unified settings
 
 Open **Clean11 Settings** from Start, the overview gear, or a dock app's context menu.
-The WPF UI window groups Overview & search and Dock preferences into separate pages.
-Save overview changes with **Save overview settings**; save dock changes with **Apply**.
+The rebuilt WPF UI window has Appearance, Dock, Overview, Apps & search, and System pages.
+Use the fixed **Apply changes** button to save preferences across all pages. Appearance includes an illustrative material preview; pinning and index actions apply immediately as labeled.
 
 **Live game previews** On enables live thumbnails for detected games; Off keeps game cards without live capture. Existing preferences are preserved. Overview changes apply on the next overview opening. Dock changes apply immediately.
 
@@ -56,3 +56,5 @@ Clean11 uses **[WPF UI](https://github.com/lepoco/wpfui)** as its UI library. WP
 Thank you to the WPF UI contributors for their open-source controls, themes, and navigation components. Version 4.3.0 is restored from NuGet during development; compiled dependencies are not committed to source control.
 
 See [third-party notices](THIRD-PARTY-NOTICES.md) and the [full WPF UI license](licenses/WPF-UI-LICENSE.txt). Distributions containing WPF UI must retain its copyright and license notice.
+
+The Settings redesign uses a 210px navigation sidebar, shared setting cards, wrapping descriptions, numeric slider readouts, independently scrolling content, and a fixed save footer. Closing with pending edits offers Apply, Discard (No), or Cancel. Material controls now live under Appearance; startup and bottom-bar integration live under System.
