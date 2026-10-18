@@ -49,3 +49,13 @@ This is a first working dock, not complete desktop-shell parity. Native notifica
 The current dock uses a translucent WPF surface, not a live blurred desktop backdrop. It uses the shared WPF UI controls and theme rather than copying platform branding or proprietary assets.
 
 Build compilation is performed during development. Interactive behavior, mixed-DPI transitions, game switching, and recovery still need user-authorized acceptance testing before a public release. EXE/MSI packaging remains part of the full Clean11 roadmap.
+
+## Visual refinement and interactive checks
+
+The dock now uses a compact 40-pixel default icon size, restrained 1.22x magnification, a divider before utilities, and borderless hover surfaces. Magnification allocates room between neighboring icons. High-resolution shell images load on the background STA thread; packaged apps can retain the executable icon learned from a running window. Settings remain available from the context menu and notification icon.
+
+A deferred preview placement could run after its window closed, yielding an invalid DPI/position and terminating the dock. Placement now checks window lifetime, handle validity, DPI, and finite coordinates before moving the preview.
+
+Interactive computer-use checks covered settled dock appearance, hover enlargement, and a multi-window preview. Compilation succeeded. Mixed-DPI and game scenarios still need broader acceptance coverage. The `--inspect-ui` argument temporarily exposes shell windows to accessibility tools; ordinary launches keep their normal shell behavior.
+
+Icon extraction follows Microsoft's [IShellItemImageFactory guidance](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemimagefactory-getimage), including background extraction and releasing returned bitmap handles.

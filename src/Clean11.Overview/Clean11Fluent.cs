@@ -41,6 +41,12 @@ static class Clean11Fluent {
         button.ToolTip=label;System.Windows.Automation.AutomationProperties.SetName(button,label);
         return button;
     }
+    internal static void Quiet(Ui.Button button) {
+        button.Appearance=Ui.ControlAppearance.Transparent;button.Foreground=ActivityTheme.Brush("Muted","#A6ABB5");button.BorderThickness=new Thickness(0);button.Background=Brushes.Transparent;
+        button.Template=(ControlTemplate)System.Windows.Markup.XamlReader.Parse(@"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='Button'><Border x:Name='Chrome' Background='Transparent' CornerRadius='10' Padding='{TemplateBinding Padding}'><ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center'/></Border><ControlTemplate.Triggers><Trigger Property='IsMouseOver' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#14FFFFFF'/></Trigger><Trigger Property='IsPressed' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#22FFFFFF'/></Trigger><Trigger Property='IsKeyboardFocused' Value='True'><Setter TargetName='Chrome' Property='Background' Value='#22FFFFFF'/></Trigger></ControlTemplate.Triggers></ControlTemplate>");
+        // IconButton normally uses the library's Icon slot; retain it in this simple template.
+        if(button.Icon!=null){var symbol=button.Icon as Ui.SymbolIcon;string name=symbol==null?"":symbol.Symbol.ToString();if(name.StartsWith("Dismiss")||name.StartsWith("Settings"))button.Content=new TextBlock{Text=name.StartsWith("Dismiss")?"\uE711":"\uE713",FontFamily=new FontFamily("Segoe Fluent Icons"),FontSize=14,Foreground=ActivityTheme.Brush("Text","#F1F2F5")};else{button.Icon.Foreground=ActivityTheme.Brush("Muted","#A6ABB5");button.Content=button.Icon;}}
+    }
     internal static Border Card(UIElement content) {
         return new Border{Child=content,Background=ActivityTheme.Brush("Card","#303030"),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),
             BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.RowRadius),Padding=new Thickness(16),Margin=new Thickness(0,0,0,6)};

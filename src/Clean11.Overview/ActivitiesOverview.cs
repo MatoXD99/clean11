@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -648,7 +648,7 @@ partial class Overview : Form {
             uint pid;Native.GetWindowThreadProcessId(hwnd,out pid);
             if(pid==ownPid)return true;ProcessIdentity process;
             if(!processes.TryGetValue(pid,out process)){process=ProcessSnapshot.Read(pid);processes[pid]=process;}
-            if(process.Name.Equals("seelen-ui",StringComparison.OrdinalIgnoreCase)||process.Name.Equals("Flow.Launcher",StringComparison.OrdinalIgnoreCase))return true;
+            if(process.Name.Equals("Clean11.Dock",StringComparison.OrdinalIgnoreCase)||process.Name.Equals("seelen-ui",StringComparison.OrdinalIgnoreCase)||process.Name.Equals("Flow.Launcher",StringComparison.OrdinalIgnoreCase))return true;
             string processPath=process.Path;bool game=IsGameProcess(process.Name,processPath);
             Rectangle rect=Native.Bounds(hwnd);bool minimized=Native.IsIconic(hwnd);
             if(minimized){var placement=new Native.Placement{Length=Marshal.SizeOf(typeof(Native.Placement))};if(Native.GetWindowPlacement(hwnd,ref placement)&&placement.NormalPosition.Right>placement.NormalPosition.Left&&placement.NormalPosition.Bottom>placement.NormalPosition.Top)rect=Native.PlacementBounds(hwnd,placement);}
@@ -817,7 +817,9 @@ partial class Overview : Form {
         Native.Log("Entrance complete; rendered ticks="+frames+", DWM updates ms="+(int)thumbnailMs+", paint ms="+(int)paintMs);
     }
     void EndOverview(Action next) {
-        if(!Visible||closing)return;
+        if(!Visible||closing){HideSpotlight();return;}
+        StopFocusHandoff();if(openingMotion)FinishEntrance(false);
+        closing=true;
         HideSpotlight();
         HideRoundedPreviews();
         StopFocusHandoff();if(openingMotion)FinishEntrance(false);
@@ -836,14 +838,14 @@ partial class Overview : Form {
         StopFocusHandoff();
         ReleaseOwnPointerCapture();
         folderDelay.Stop();folderTimeout.Stop();folderGeneration++;folderReplyId=0;openFolderWhenReady=false;
-        windowWatcher.Stop();StopMotion();rendering=false;openingMotion=false;closing=false;Hide();ReleaseThumbnails();
+        windowWatcher.Stop();StopMotion();HideSpotlight();rendering=false;openingMotion=false;Hide();ReleaseThumbnails();closing=false;
         Native.Log("Overview hidden");
         Action next=afterClose;afterClose=null;
         Native.Log("Overview close completed; selected="+(exitWindow==null?"none":exitWindow.ProcessName+"/"+exitWindow.Hwnd)+", generation="+generation);
         exitWindow=null;exitSearchBounds=Rectangle.Empty;
         if(next!=null)next();else if(Native.IsWindow(previous))Native.SetForegroundWindow(previous);
     }
-    public void Abort() {if(shuttingDown||IsDisposed)return;HideSpotlight();ReleaseOwnPointerCapture();StopFocusHandoff();folderDelay.Stop();folderTimeout.Stop();folderGeneration++;folderReplyId=0;openFolderWhenReady=localFolderPending=indexFolderPending=false;windowWatcher.Stop();StopMotion();Hide();ReleaseThumbnails();rendering=false;closing=false;openingMotion=false;}
+    public void Abort() {if(shuttingDown||IsDisposed)return;closing=true;HideSpotlight();ReleaseOwnPointerCapture();StopFocusHandoff();folderDelay.Stop();folderTimeout.Stop();folderGeneration++;folderReplyId=0;openFolderWhenReady=localFolderPending=indexFolderPending=false;windowWatcher.Stop();StopMotion();Hide();ReleaseThumbnails();rendering=false;closing=false;openingMotion=false;}
     void ReleaseThumbnails() {ReleaseRoundedPreviews();foreach(var w in windows)if(w.Thumbnail!=IntPtr.Zero){Native.DwmUnregisterThumbnail(w.Thumbnail);w.Thumbnail=IntPtr.Zero;}}
     static int Score(string label,string query) {
         return SearchRank.Match(label,query);

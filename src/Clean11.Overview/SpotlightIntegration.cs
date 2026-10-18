@@ -20,7 +20,7 @@ partial class Overview {
     bool SpotlightHeaderVisible {get{return spotlight!=null&&spotlight.IsVisible;}}
     bool SpotlightOwnsForeground(IntPtr foreground){return spotlight!=null&&spotlight.OwnsForeground(foreground);}
     bool FocusSpotlightOverview(){
-        if(diagnostic||spotlightUnavailable)return false;
+        if(diagnostic||spotlightUnavailable||closing||shuttingDown||!Visible)return false;
         try{if(spotlight==null)spotlight=new SpotlightPanel(this);if(!SpotlightActive&&search.Text.Length==0&&!browsing)spotlight.ShowOverview(SpotlightOrigin);spotlight.FocusInput();search.Visible=false;searchHint.Visible=false;return true;}
         catch(Exception error){spotlightUnavailable=true;Native.Log("Spotlight header unavailable; native input retained: "+error);return false;}
     }
@@ -29,7 +29,7 @@ partial class Overview {
     internal bool SpotlightReduced {get{return reducedMotion;}}
     internal bool SpotlightGlass {get{return state.Glass;}}
     internal bool SpotlightGameFriendly {get{return state.GameFriendly;}}
-    Rectangle SpotlightOrigin {get{var bounds=searchBox;bounds.Inflate(U(12),U(12));if(FavoriteItems().Count>0)bounds.Height=U(174);bounds.Offset(Left,Top);return bounds;}}
+    Rectangle SpotlightOrigin {get{var bounds=searchBox;bounds.Inflate(U(12),U(12));int center=bounds.Left+bounds.Width/2;bounds.Width=U(720);bounds.X=center-bounds.Width/2;bounds.Height=U(FavoriteItems().Count>0?124:64);bounds.Offset(Left,Top);return bounds;}}
     internal Rectangle SpotlightOverviewBounds {get{return SpotlightOrigin;}}
     internal List<ResultItem> SpotlightFavorites(){return FavoriteItems();}
     internal void OpenSpotlightFavorite(int index){OpenFavorite(index);}

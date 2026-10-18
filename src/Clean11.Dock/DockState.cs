@@ -7,10 +7,10 @@ using System.Runtime.InteropServices;
 using System.Web.Script.Serialization;
 
 sealed class DockPin {
-    public string Id=Guid.NewGuid().ToString("N"),Name="",Path="",Arguments="",WorkingDirectory="",AppId="",MatchPath="";
+    public string Id=Guid.NewGuid().ToString("N"),Name="",Path="",Arguments="",WorkingDirectory="",AppId="",MatchPath="",IconPath="";
 }
 sealed class DockState {
-    public int Version=1,IconSize=44;public double Magnification=1.4;
+    public int Version=1,IconSize=40;public double Magnification=1.22;
     public string Visibility="Intelligent",Monitor="";
     public bool ReducedMotion=false,ShowDownloads=true,ShowRecycleBin=true,ShowBackgroundApps=true,TakeOver=true,Startup=true;
     public List<DockPin> Pins=new List<DockPin>();

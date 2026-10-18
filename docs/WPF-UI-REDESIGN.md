@@ -26,3 +26,11 @@ This iteration covers the current custom overview/search app. The existing exter
 The application compiles and its Search, Settings, and overview-header designs have been rendered offscreen without showing windows or injecting input. The preview generator uses synthetic app entries. Live keyboard, focus, fullscreen/game, and mixed-DPI interactions have not been exercised in this pass. No regression suites were run.
 
 Only reviewed source files, build scripts, theme data, and required notices are committed. Personal preferences, caches, desktop captures, logs, installed binaries, and backup archives remain outside source control.
+
+## Minimal surface refinement
+
+Search uses a single borderless input surface, a compact horizontal favorites row, smaller result rows, and a detail area separated by one subtle rule. Shared theme tokens supply the charcoal palette, low-contrast borders, and rounded corners.
+
+Dismissal sets the closing state before hiding the WPF panel. Previously hiding the panel could reactivate the native owner and reopen the input before closing was marked. Final close and abort also hide the panel; hidden or closing owners cannot reopen it. Returning from search resets the visible query, and Escape is handled at window level.
+
+Interactive checks confirmed immediate typing, PowerShell as the top result, Escape returning to an empty overview, a second Escape dismissing it, and close-button dismissal. Search and dock inspection used `--inspect-ui`; normal background launch does not enable this diagnostic behavior.
