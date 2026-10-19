@@ -1,90 +1,140 @@
+<div align="center">
+
 # Clean11
 
-A cohesive desktop experience for Windows 11: fast search, window overview, a floating dock, a top bar, a customizable desktop, and one Settings app.
+### Windows, with room to breathe.
 
-**Status: overview/search and dock prototypes.** The repository contains the overview/search application and a native bottom dock using WPF UI, alongside the full desktop-suite blueprint. Top Bar, Desktop, and EXE/MSI packaging remain planned work.
+A floating dock, a keyboard-first window overview, and a focused search experience — connected by one glass design system.
 
-## The experience
+**Windows 11 · C# / WPF · WPF UI · Active prototype**
 
-Clean11 combines softly rounded glass surfaces, clear typography, responsive motion, and familiar Windows capabilities. All surfaces share the same design system. Each module can be enabled independently.
+[Explore the features](#a-calmer-everyday-desktop) · [Build from source](#build-from-source) · [Roadmap](#whats-next) · [Documentation](#documentation)
 
-The existing overview layout is the starting point. Typing transforms its search field into a centered search panel. The dock, top bar, desktop, menus, and Settings use the same materials and interaction rules.
+</div>
 
-## Read the plan
+![Clean11 desktop illustration: floating search, an organized window overview, and an icon-only dock](docs/images/clean11-desktop.png)
 
-1. [Product plan](docs/PRODUCT-PLAN.md): features and everyday behavior.
-2. [Design system](docs/DESIGN-SYSTEM.md): materials, corners, motion, and accessibility.
-3. [Architecture](docs/ARCHITECTURE.md): application structure, Windows integration, and technical decisions.
-4. [Delivery roadmap](docs/ROADMAP.md): implementation order and acceptance gates.
-5. [Privacy and release](docs/PRIVACY-AND-RELEASE.md): repository hygiene, installation, updates, and distribution.
+> **About the images:** these are original, illustrative previews with synthetic content, not screenshots of a real desktop. They communicate the design direction; the running prototype can differ. No personal documents, accounts, conversations, wallpaper captures, or third-party reference screenshots are included.
 
-## Principles
+## A calmer everyday desktop
 
-- Fast local search and reliable keyboard interaction.
-- A consistent visual language across the entire product.
-- Real Windows actions, understandable controls, and an obvious power menu.
-- Recoverable integration with the Windows desktop.
-- Local data by default; no account required.
-- No dependency on another desktop customization suite.
+Clean11 brings the useful parts of a desktop closer together: find something, switch windows, open an app, and get back to work. Familiar Windows actions stay at the center of the experience.
 
-## Distribution intent
+### Your windows, at a glance
 
-Provide an EXE installer for individual users and an MSI distribution for managed installations. Public releases require the compatibility, privacy, license, and recovery gates in the plan.
+Open the overview with the Windows key, then choose a window or start typing. Live previews, compact minimized-window cards, and readable labels help you find your place. Pressing the key again during entrance reverses the animation.
 
-The project license is a decision for the project owner before code publication. Adopted third-party code and dependencies retain their own licenses and notices.
+### A dock that stays out of your way
 
-## Current implementation
+Pin your everyday apps alongside running windows. Smooth magnification, grouped window previews, Downloads, and quick actions keep things close without filling the desktop with controls.
 
-See [building the overview prototype](docs/BUILDING.md), [WPF UI redesign notes](docs/WPF-UI-REDESIGN.md), and [Dock features, installation, recovery, and limitations](docs/DOCK.md).
+Choose **Never hide**, **Auto hide**, or **Intelligent** behavior. Hiding in fullscreen is a separate preference.
 
-The current prototype uses C# and WPF UI 4.3.0 with the existing .NET Framework backend. Search, favorites, window previews, shortcuts, and launch behavior are retained. It is not yet the complete desktop suite described by the roadmap.
+### Search without the clutter
 
-## Unified settings
+Typing in overview expands the top search field into a focused panel for applications, windows, files, folders, and Windows settings. Favorites and keyboard navigation keep common actions close.
 
-Open **Clean11 Settings** from Start, the overview gear, or a dock app's context menu.
-The rebuilt WPF UI window has Appearance, Dock, Overview, Apps & search, and System pages.
-Use the fixed **Apply changes** button to save preferences across all pages. Appearance includes an illustrative material preview; pinning and index actions apply immediately as labeled.
+File-search coverage depends on the available index/provider. The optional Everything SDK is not bundled.
 
-**Live game previews** On enables live thumbnails for detected games; Off keeps game cards without live capture. Existing preferences are preserved. Overview changes apply on the next overview opening. Dock changes apply immediately.
+### One place to make it yours
 
-The Settings launcher reuses the dock's settings host; if the dock is stopped, opening Settings starts it. Overview preferences live separately from history and favorites in the current user's LocalAppData/Clean11/Overview directory. No user paths or preferences are committed. The dock installer adds the Start-menu shortcut. Build the dock and overview together when updating this feature.
+Appearance, Dock, Overview, Apps & search, and System live together in Clean11 Settings. Shared glass visibility and blur radius apply across supported Clean11 surfaces. Choose a material, tune motion, and decide whether **Live game previews** are enabled.
 
-## Credits
+![Clean11 Settings illustration showing Appearance, shared glass visibility, and blur radius controls](docs/images/clean11-settings.png)
 
-Clean11 uses **[WPF UI](https://github.com/lepoco/wpfui)** as its UI library. WPF UI is created by **Leszek Pomianowski and the WPF UI Contributors** and is licensed under the **MIT License**.
+## What works today
 
-Thank you to the WPF UI contributors for their open-source controls, themes, and navigation components. Version 4.3.0 is restored from NuGet during development; compiled dependencies are not committed to source control.
+| Component | Current scope |
+| :-- | :-- |
+| **Window overview** | Live window previews, minimized cards, close actions, reversible entrance motion |
+| **Search** | Apps, windows, Windows settings, favorites, and provider-dependent file/folder results |
+| **Floating dock** | Pins, running apps, magnification, grouped previews, Downloads, and hide modes |
+| **Settings** | Shared appearance, dock behavior, overview controls, and live game preview preference |
+| **Glass** | Adjustable visibility and blur, with a system fallback where composition is unavailable |
+| **Modern runtime** | Separate .NET 10 build candidate; the established app still uses .NET Framework |
 
-See [third-party notices](THIRD-PARTY-NOTICES.md) and the [full WPF UI license](licenses/WPF-UI-LICENSE.txt). Distributions containing WPF UI must retain its copyright and license notice.
+**This is a working prototype, not a finished desktop replacement.** Top Bar, Desktop, and public EXE/MSI installers remain planned. Some tray and power-menu actions still use compatibility integrations; see [current limitations](docs/DOCK.md).
 
-The Settings redesign uses a 210px navigation sidebar, shared setting cards, wrapping descriptions, numeric slider readouts, independently scrolling content, and a fixed save footer. Closing with pending edits offers Apply, Discard (No), or Cancel. Material controls now live under Appearance; startup and bottom-bar integration live under System.
+## Build from source
 
-### Shared appearance
+### Requirements
 
-Appearance is stored once in the overview preferences: material, glass visibility, and blur radius. Dock and popup composition use the same tint gradient as the Settings material preview. The radius is expressed as a visual blur radius; the composition renderer converts it to Gaussian standard deviation instead of treating radius and sigma as interchangeable.
+- Windows 11, x64.
+- PowerShell and the Windows .NET Framework compiler/runtime.
+- Internet access to restore the pinned WPF UI packages from NuGet.
 
-The existing background-apps widget retains its tray actions. Clean11 supplies its compact theme and a separate native glass backdrop, with the widget above it so labels and icons remain sharp. Saving Appearance reloads the local tray resource without restarting the whole compatibility host. The adapter targets only the identified local tray widget and does not alter other widgets.
+```powershell
+git clone https://github.com/MatoXD99/clean11.git
+cd clean11
 
-## Performance implementation
+# Restore dependencies, then build overview/search.
+.\src\Clean11.Overview\RestoreDependencies.ps1
+.\src\Clean11.Overview\Build.ps1
 
-WPF UI remains the controls, icons, and theme library. Custom native preview hosts and glass composition complement it; changing those layers does not remove the WPF UI dependency or its license obligations.
+# Build the dock and Settings launcher using the same dependencies.
+.\src\Clean11.Dock\Build.ps1
+```
 
-Appearance reads now use an immutable in-memory snapshot. A debounced file watcher reloads changes outside animation callbacks. Unchanged palettes, edge brushes, and dock activity indicators are reused. Search prepares its composition material while hidden. Overview exit keeps captions and minimized cards visible through their fade, and drives the top search bar's exit with the same progress.
+Build outputs:
 
-Appearance includes **Compositor glass animation (experimental)**, off by default. This submits a glass reveal animation to Windows Composition. It is a limited prototype: window previews and search geometry still use the established renderer. Turn the toggle off and apply to restore the standard reveal. Reduced motion takes precedence.
+- `src/Clean11.Overview/ActivitiesOverview.exe` — overview/search; the executable name is retained for compatibility.
+- `src/Clean11.Dock/bin/Clean11.Dock.exe` — floating dock and Settings host.
+- `src/Clean11.Dock/bin/Clean11.Settings.exe` — Settings launcher.
 
-### Measurements and diagnostics
+Keep companion DLLs beside each executable. Building does **not** install the app. Read [build instructions](docs/BUILDING.md) and [dock installation and recovery](docs/DOCK.md) before enabling startup or changing bottom-bar integration.
 
-From the repository root, run `tools/Measure-Performance.ps1 -Executable <overview-exe> -LogPath <native-log>`. Leave the desktop idle during the run. The script warms one cycle, then records numeric preparation and update timings under ignored `artifacts/performance/`. It rejects incomplete runs. `-AlreadyHidden` supports older executables without `--hide`, provided the caller first establishes a hidden overview.
+The isolated **.NET 10 candidate** can be built with a .NET 10 SDK:
 
-One local four-cycle before/after comparison measured average preparation of 95.25 ms versus 54.03 ms. Mean per-transition median update gap was 7.28 ms versus 6.80 ms; mean p95 gap was 16.48 ms versus 16.44 ms, and worst gap was 25.4 ms versus 27.2 ms. These are application update timings under a changing desktop workload, not displayed FPS or a guarantee of improvement on other machines. Tail latency remains a target for further work.
+```powershell
+.\src\Clean11.Modern\Build.ps1
+```
 
-For presentation analysis, run `tools/Record-Performance.ps1 Start` from a terminal permitted to profile the system, reproduce transitions, then run `tools/Record-Performance.ps1 Stop`. The WPR profile combines CPU, GPU, desktop composition, and Clean11 timing events. Clean11 events contain only action/area identifiers and numeric timings; system traces may include process metadata and should remain local. Windows denied profiling during the implementation session, so no displayed-FPS result is claimed.
+It is not yet the default runtime or an installer-ready release.
 
-`--self-test` checks geometry, game classification, and settings serialization. `--graphics-self-test` checks palette reuse and repeated hidden composition creation, adjustable blur, opacity animation, and disposal. These checks passed on the current runtime and the .NET 10 candidate. They do not replace visual or presentation testing.
+## Built for Windows
 
-### Separate .NET 10 candidate
+**C# + WPF UI** provide controls, icons, and theme resources. Native Windows previews and composition supply the custom overview and glass layers. WPF UI is an active dependency, even where Clean11 supplies its own layout and motion.
 
-`src/Clean11.Modern/Build.ps1 -Dotnet <dotnet-executable>` builds Overview, Dock, and the Settings launcher using .NET 10 and WPF UI 4.3.0. Build outputs are separated per project. The candidate preserves field-based settings JSON and supplies the updated Windows Runtime interop needed by adjustable blur. The Settings launcher must be packaged beside the dock executable; build output directories alone are not an installer.
+Performance work focuses on reducing preparation, keeping file I/O out of animation callbacks, reusing resources, and measuring frame timing. An optional compositor glass reveal is available experimentally. See [measurement tools and runtime status](docs/BUILDING.md#performance-implementation) for the scope and limitations.
 
-The installed app continues to use the established .NET Framework build. Promoting the modern candidate requires startup, installer/upgrade, multi-monitor DPI, graphics-device recovery, and full visual parity checks. A full Composition preview renderer is also a future stage, beyond the optional glass prototype. No process-priority escalation, new search provider, or native-language rewrite is included without trace evidence that it would help.
+## Privacy by design
+
+- Core use requires no Clean11 account; personal settings and search state stay in per-user local storage.
+- The repository contains source, documentation, license notices, and original synthetic illustrations.
+- Private configuration, logs, traces, keys, generated binaries, and build caches are excluded from source control.
+- Before sharing a bug report, remove personal window titles, file paths, queries, and account details from screenshots or logs.
+
+See [privacy and release engineering](docs/PRIVACY-AND-RELEASE.md) for the complete policy. The source audit is not a certification of every runtime behavior or future release artifact.
+
+## What's next
+
+- [x] Overview and focused search prototype
+- [x] Floating dock and unified Settings
+- [x] Shared glass controls and animation improvements
+- [ ] Broader performance, accessibility, and multi-monitor validation
+- [ ] Promote the modern runtime after compatibility checks
+- [ ] Clean11 Top Bar and Desktop modules
+- [ ] EXE/MSI packaging, upgrades, and recovery validation
+
+Follow the [delivery roadmap](docs/ROADMAP.md) for the larger desktop-suite plan. Planned features are not included in the current prototype unless marked above.
+
+## Documentation
+
+| Guide | What you'll find |
+| :-- | :-- |
+| [Build & performance](docs/BUILDING.md) | Dependencies, builds, diagnostics, and the modern-runtime candidate |
+| [Dock](docs/DOCK.md) | Behavior, settings, installation, recovery, and limitations |
+| [Product plan](docs/PRODUCT-PLAN.md) | The complete Clean11 desktop vision |
+| [Design system](docs/DESIGN-SYSTEM.md) | Materials, spacing, typography, and motion |
+| [Architecture](docs/ARCHITECTURE.md) | Module boundaries and Windows integration |
+| [Privacy & releases](docs/PRIVACY-AND-RELEASE.md) | Repository hygiene and distribution requirements |
+
+## Credits & licensing
+
+Clean11 uses **[WPF UI](https://github.com/lepoco/wpfui)** by Leszek Pomianowski and the WPF UI Contributors, licensed under MIT. Its controls and themes are a foundation of the project. The required [license](licenses/WPF-UI-LICENSE.txt) and [third-party notices](THIRD-PARTY-NOTICES.md) are retained.
+
+Adapted components also credit Flow Launcher / Wox and WindowScatter. See the notices for provenance and license texts.
+
+**A license for Clean11's own code has not yet been selected.** Dependency licenses apply to their respective components and do not automatically license the whole repository. Public source availability alone is not a broad reuse grant.
+
+The README illustrations are original Clean11 documentation artwork, drawn from synthetic examples with [the included generator](tools/Render-Readme.py). They contain no copied vendor wallpapers, logos, or reference screenshots.

@@ -21,6 +21,9 @@ TestResults/
 *.p12
 *.key
 *.pem
+.ssh/
+id_rsa*
+id_ed25519*
 *.log
 *.dmp
 *.etl

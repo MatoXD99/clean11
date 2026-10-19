@@ -63,4 +63,10 @@ Recommended plan:
 - Clean-machine installer, upgrade, recovery, and uninstall reports.
 - Review public account, repository URL, release publisher, and author identity before adding a remote or publishing.
 
-The repository now includes the reviewed overview/search prototype. The full-suite installer and release certification are not complete. Public publishing and signing remain later release actions.
+The repository now includes the overview/search prototype, dock, Settings, and a separate modern-runtime candidate. Initial source publication is authorized; full-suite installers, signing, and release certification are not complete.
+
+## Initial source publication review — 2026-10-19
+
+The pre-publication review covered all reachable historical file versions, author/committer identities, tracked filenames, known private identity/path markers, common credential patterns, and referenced URL hosts. The 241 historical source/document blobs reviewed before the README update contained no matches for the private markers or credential patterns checked, and no historical binary assets. Author and committer metadata use the neutral Clean11 contributor identity.
+
+The README uses newly drawn synthetic illustrations, reviewed visually and checked for image metadata. No real desktop captures or third-party reference images are included. Build output, local configuration, diagnostics, and SSH keys remain outside the committed files. This is a bounded source-publication review, not an exhaustive security audit or a guarantee that every possible sensitive value can be recognized.
