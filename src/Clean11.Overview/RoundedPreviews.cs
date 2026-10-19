@@ -45,6 +45,19 @@ partial class Overview {
     readonly Dictionary<IntPtr,RoundedPreview> roundedPreviews=new Dictionary<IntPtr,RoundedPreview>();
     byte previewOpacity=255;
     internal byte SpotlightPreviewOpacity {get{return previewOpacity;}}
+    internal void PrepareSpotlightPreviewFade(){
+        if(!Visible||closing||previewOpacity!=255)return;
+        bool handoff=false;
+        foreach(var window in windows){
+            RoundedPreview preview;
+            if(window.Thumbnail==IntPtr.Zero||!roundedPreviews.TryGetValue(window.Hwnd,out preview)||!preview.Visible)continue;
+            var properties=new Native.Props{Flags=1|4|8|16,Destination=new Native.Rect(window.Preview),Opacity=255,Visible=true,ClientOnly=false};
+            Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref properties);handoff=true;
+        }
+        // Prepare the transparent host before the shared animation clock starts,
+        // rather than stalling its first moving frame with a compositor wait.
+        if(handoff){Native.DwmFlush();foreach(var preview in roundedPreviews.Values)preview.Hide();}
+    }
     internal void FadeSpotlightPreviews(byte opacity){
         byte previous=previewOpacity;previewOpacity=opacity;if(!Visible||closing)return;
         if(previous==opacity)return;
@@ -62,8 +75,6 @@ partial class Overview {
                 bounds.Offset(Left,Top);badge.MoveWithPreview(bounds);badge.SetVisibilityProgress(progress);
             }
         }
-        // Hand off only once, with the shared transparent host already painted.
-        if(previous==255){Native.DwmFlush();foreach(var preview in roundedPreviews.Values)preview.Hide();}
     }
 
     void HideRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Hide();foreach(var badge in previewBadges.Values)badge.Hide();}

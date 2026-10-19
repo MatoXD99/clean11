@@ -537,7 +537,6 @@ partial class Overview : Form {
         var token=cancellation.Token;int epoch=Volatile.Read(ref motionEpoch);
         var surfaces=CaptureSurfaces();bool reverse=closing;IntPtr renderHost=previewHost.Handle;
         double duration=MotionMilliseconds(state.MotionDuration,reverse);
-        foreach(var window in windows){PlaceSpotlightBadge(window,reverse?1:0);}
         UpdateMotionBadges(reverse?1:0);
         int badgeFramePending=0;
         motionThread=new Thread(()=> {
@@ -702,6 +701,9 @@ partial class Overview : Form {
             phase.Restart();ReadWindows();double windowDiscoveryMs=phase.Elapsed.TotalMilliseconds;
             phase.Restart();LayoutCards();RebuildResults();UpdateThumbnails(0);double layoutMs=phase.Elapsed.TotalMilliseconds;
             phase.Restart();EnsurePaintCache();using(var surface=Graphics.FromImage(chromeCache))PaintChrome(surface);chromeDirty=false;double chromeCacheMs=phase.Elapsed.TotalMilliseconds;
+            // Build captions before either the search or native window motion starts.
+            foreach(var window in windows){PlaceSpotlightBadge(window,0);}
+            UpdateMotionBadges(0);
             previewHost.Show();Show();Activate();bool foreground=Native.SetForegroundWindow(Handle);FocusSearch();Update();
             Native.Log("Prepared complete scene before show; total ms="+preparation.Elapsed.TotalMilliseconds.ToString("F1")+", wallpaper ms="+wallpaperPreparationMs.ToString("F1")+", windows ms="+windowDiscoveryMs.ToString("F1")+", layout-and-thumbnails ms="+layoutMs.ToString("F1")+", chrome-cache ms="+chromeCacheMs.ToString("F1")+", foreground="+foreground);
             frames=0;thumbnailMs=paintMs=motionPaintMs=0;StartMotion();

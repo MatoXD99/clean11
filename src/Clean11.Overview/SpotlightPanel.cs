@@ -213,7 +213,7 @@ sealed class SpotlightPanel : Window {
         bodyFrom=!settings&&searchPage.Visibility!=Visibility.Visible?0:Math.Min(start.Height<=180*dpi?0:1,settings?settingsPage.Opacity:searchPage.Opacity);bodyTo=done!=null?0:1;
         if(bodyTo>0){searchPage.Width=Math.Max(1,target.Width/dpi-2);searchPage.Height=Math.Max(1,target.Height/dpi-66);searchPage.HorizontalAlignment=HorizontalAlignment.Left;searchPage.VerticalAlignment=VerticalAlignment.Top;}
         if(reduced){Position(to);BodyOpacity(1);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeTo);fadingPreviews=false;var action=animationDone;animationDone=null;if(action!=null)action();}
-        else{if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeFrom);BodyOpacity(bodyFrom);
+        else{if(fadingPreviews){overview.PrepareSpotlightPreviewFade();overview.FadeSpotlightPreviews((byte)fadeFrom);}BodyOpacity(bodyFrom);
             // Allocate one layered buffer for the whole morph. Only its visible
             // surface changes size; resizing the HWND each tick reallocates it.
             Width=Math.Max(from.Width,to.Width)/dpi;Height=Math.Max(from.Height,to.Height)/dpi;
@@ -240,7 +240,7 @@ sealed class SpotlightPanel : Window {
             previousFrame=now;transitionFrames++;
             // Preparation must not consume the start of the visible motion.
             double t=Math.Min(1,(now-firstFrameMilliseconds)/animationDuration);
-            double eased=t*t*t*(t*(t*6-15)+10);
+            double eased=Overview.MotionCurve(t);
             if(enteringOverview)root.Opacity=eased;
             var positionWatch=Stopwatch.StartNew();
             Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),
