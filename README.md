@@ -10,9 +10,9 @@ A floating dock, a keyboard-first window overview, and a focused search experien
 
 **Proudly vibe-coded with OpenAI Codex. Human vision. AI collaboration. Obsessive iteration.**
 
-**[☕ Buy me a coffee](https://buymeacoffee.com/matoxd99)**
+## [☕ Buy me a coffee · Support Clean11](https://buymeacoffee.com/matoxd99)
 
-[Why we vibe-code](#proudly-vibe-coded) · [Explore the features](#a-calmer-everyday-desktop) · [Build from source](#build-from-source) · [Roadmap](#whats-next) · [Documentation](#documentation)
+[Why we vibe-code](#proudly-vibe-coded) · [Explore the features](#a-calmer-everyday-desktop) · [Build from source](#build-from-source) · [Get involved](#help-build-clean11) · [Roadmap](#whats-next) · [Documentation](#documentation)
 
 </div>
 
@@ -157,9 +157,27 @@ Follow the [delivery roadmap](docs/ROADMAP.md) for the larger desktop-suite plan
 | [Architecture](docs/ARCHITECTURE.md) | Module boundaries and Windows integration |
 | [Privacy & releases](docs/PRIVACY-AND-RELEASE.md) | Repository hygiene and distribution requirements |
 
+## Help build Clean11
+
+**Any help is welcome.** Clean11 is an active personal project, and you don't need to be a developer to help shape it. Bug reports, feature ideas, design feedback, documentation improvements, and code contributions all make a difference. First-time contributors are welcome too.
+
+- **Found a bug or have an idea?** [Open an issue](https://github.com/MatoXD99/clean11/issues). For bugs, include what happened, what you expected, steps to reproduce, and your Windows and Clean11 versions. Screenshots help; remove personal information before sharing them.
+- **Want to contribute code or docs?** Fork the repository, make your changes on a branch, and [open a pull request](https://github.com/MatoXD99/clean11/pulls). Explain what changed and how you checked it. For larger changes, open an issue first so we can agree on the direction.
+- **Trying the alpha?** Tell me what feels smooth, what feels awkward, and what breaks on your setup. Practical feedback is especially useful at this stage.
+
+I'll do my best to respond to issues and review pull requests promptly, work through reported problems, and merge improvements that fit the project. This is a personal project, so turnaround can vary, but feedback is welcome and appreciated.
+
 ## Support Clean11
 
-Enjoying Clean11? [☕ Buy me a coffee](https://buymeacoffee.com/matoxd99) and fuel the next coding session. Every tip is appreciated and helps keep the project moving.
+Enjoying Clean11? Help fuel the next coding session. Every tip is appreciated and helps keep the project moving. Reporting a bug or sharing an idea is just as welcome.
+
+<div align="center">
+
+## [☕ Buy me a coffee](https://buymeacoffee.com/matoxd99)
+
+**Support the next round of Clean11 improvements.**
+
+</div>
 
 ## Credits & licensing
 
