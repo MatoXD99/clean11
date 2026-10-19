@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -46,14 +46,26 @@ partial class Overview {
     byte previewOpacity=255;
     internal byte SpotlightPreviewOpacity {get{return previewOpacity;}}
     internal void FadeSpotlightPreviews(byte opacity){
-        bool changed=(previewOpacity==0)!=(opacity==0);
-        previewOpacity=opacity;if(!Visible||closing)return;
-        // Rounded hosts now switch visibility rather than fading their black
-        // backing. Do not re-submit every unchanged thumbnail on every frame.
-        if(!changed)return;
-        foreach(var badge in previewBadges.Values){badge.Opacity=1;if(opacity==0)badge.Hide();else if(!badge.IsVisible)badge.Show();}
-        foreach(var window in windows){RoundedPreview preview;if(roundedPreviews.TryGetValue(window.Hwnd,out preview))preview.Fade(opacity,Handle);else if(window.Thumbnail!=IntPtr.Zero){var properties=new Native.Props{Flags=4|8,Opacity=255,Visible=opacity>0};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref properties);}}
+        byte previous=previewOpacity;previewOpacity=opacity;if(!Visible||closing)return;
+        if(previous==opacity)return;
+        double progress=opacity/255.0;
+        foreach(var window in windows){
+            var bounds=window.Preview;
+            double size=.94+.06*progress;
+            int width=(int)Math.Round(bounds.Width*size),height=(int)Math.Round(bounds.Height*size);
+            bounds=new Rectangle(bounds.Left+(bounds.Width-width)/2,bounds.Top+(bounds.Height-height)/2+(int)Math.Round(16*(1-progress)),width,height);
+            if(window.Thumbnail!=IntPtr.Zero){
+                var properties=new Native.Props{Flags=1|4|8|16,Destination=new Native.Rect(bounds),Opacity=opacity,Visible=opacity>0,ClientOnly=false};
+                Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref properties);
+            }
+            OverviewBadge badge;if(previewBadges.TryGetValue(window.Hwnd,out badge)){
+                bounds.Offset(Left,Top);badge.MoveWithPreview(bounds);badge.SetVisibilityProgress(progress);
+            }
+        }
+        // Hand off only once, with the shared transparent host already painted.
+        if(previous==255){Native.DwmFlush();foreach(var preview in roundedPreviews.Values)preview.Hide();}
     }
+
     void HideRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Hide();foreach(var badge in previewBadges.Values)badge.Hide();}
     void ReleaseRoundedPreview(IntPtr window){ReleaseSpotlightBadge(window);RoundedPreview preview;if(roundedPreviews.TryGetValue(window,out preview)){preview.Dispose();roundedPreviews.Remove(window);}}
     void ReleaseRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Dispose();roundedPreviews.Clear();foreach(var badge in previewBadges.Values)badge.Close();previewBadges.Clear();}

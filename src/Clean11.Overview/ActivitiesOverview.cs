@@ -537,6 +537,9 @@ partial class Overview : Form {
         var token=cancellation.Token;int epoch=Volatile.Read(ref motionEpoch);
         var surfaces=CaptureSurfaces();bool reverse=closing;IntPtr renderHost=previewHost.Handle;
         double duration=MotionMilliseconds(state.MotionDuration,reverse);
+        foreach(var window in windows){PlaceSpotlightBadge(window,reverse?1:0);}
+        UpdateMotionBadges(reverse?1:0);
+        int badgeFramePending=0;
         motionThread=new Thread(()=> {
             Native.CompositionTiming compositionBefore;bool hasComposition=Native.ReadCompositionTiming(out compositionBefore);
             double targetHz=hasComposition&&compositionBefore.RefreshHz>20?compositionBefore.RefreshHz:165;
@@ -553,6 +556,10 @@ partial class Overview : Form {
                     double eased=MotionCurve(reverse?1-raw:raw);
                     long updateStart=Stopwatch.GetTimestamp();ApplySurfaces(surfaces,eased,true);
                     updates+=(Stopwatch.GetTimestamp()-updateStart)*1000.0/Stopwatch.Frequency;count++;
+                    if(Interlocked.CompareExchange(ref badgeFramePending,1,0)==0){
+                        double badgeProgress=eased;
+                        BeginInvoke((Action)(()=>{try{if(!shuttingDown&&!token.IsCancellationRequested&&epoch==Volatile.Read(ref motionEpoch))UpdateMotionBadges(badgeProgress);}finally{Interlocked.Exchange(ref badgeFramePending,0);}}));
+                    }
                     // As in WindowScatter, DWM presents the whole batch and paces
                     // the worker itself. No second timer wait after a real vsync,
                     // and no synchronous GDI/UI-thread painting during native motion.
@@ -1416,7 +1423,7 @@ partial class Overview : Form {
                     // selection is displayed on the separate alpha label.
                     OverviewBadge badge;if(previewBadges.TryGetValue(w.Hwnd,out badge))badge.SetHighlighted(highlighted);
 
-                    if(highlighted||w.ClosePending)DrawWindowClose(g,w.Card,w);
+                    if((highlighted||w.ClosePending)&&!HasSpotlightBadge(w))DrawWindowClose(g,w.Card,w);
                 }
             }
         }
