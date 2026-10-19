@@ -142,7 +142,7 @@ sealed class SpotlightPanel : Window {
         if(glassPreferences==null)glassPreferences=OverviewPreferences.Load();
         if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(overview.Handle);}
         var bounds=Current();
-        glassBackdrop.Update(hwnd,bounds.Left/dpi,bounds.Top/dpi,bounds.Width/dpi,bounds.Height/dpi,dpi,true,FrostedMaterial.Enabled(glassPreferences.Glass),glassPreferences.GlassStrength);
+        glassBackdrop.Update(hwnd,bounds.Left/dpi,bounds.Top/dpi,bounds.Width/dpi,bounds.Height/dpi,dpi,true,FrostedMaterial.Enabled(glassPreferences.Glass),glassPreferences.GlassStrength,animating);
     }
     internal void ApplyMaterial(){
         Clean11Fluent.RefreshPalette(this);
@@ -192,26 +192,70 @@ sealed class SpotlightPanel : Window {
         fadingPreviews=first||wasCompact;fadeFrom=overview.SpotlightPreviewOpacity;fadeTo=0;MoveTo(Target(true),first?origin:Current(),reduced,null);
     }
     internal void ReturnToOverview(Rect origin,bool reduced,Action complete){if(!IsVisible){complete();return;}if(settings){settings=false;input.IsReadOnly=false;synchronizing=true;input.Text="";synchronizing=false;}fadingPreviews=true;fadeFrom=overview.SpotlightPreviewOpacity;fadeTo=255;overview.FadeSpotlightPreviews((byte)fadeFrom);MoveTo(origin,Current(),reduced,()=>{Expanded=false;ShowOverview(origin);complete();});}
-    Rect Current(){Native.Rect bounds;if(hwnd!=IntPtr.Zero&&Native.GetWindowRect(hwnd,out bounds))return bounds.Box;return new Rect((int)Math.Round(Left*dpi),(int)Math.Round(Top*dpi),Math.Max(1,(int)Math.Round(ActualWidth*dpi)),Math.Max(1,(int)Math.Round(ActualHeight*dpi)));}
+    Rect presentedBounds;
+    Rect Current(){if(animating)return presentedBounds;Native.Rect bounds;if(hwnd!=IntPtr.Zero&&Native.GetWindowRect(hwnd,out bounds))return bounds.Box;return new Rect((int)Math.Round(Left*dpi),(int)Math.Round(Top*dpi),Math.Max(1,(int)Math.Round(ActualWidth*dpi)),Math.Max(1,(int)Math.Round(ActualHeight*dpi)));}
     readonly System.Windows.Threading.DispatcherTimer animationCompletion=new System.Windows.Threading.DispatcherTimer();
     void FinishAnimation(object sender,EventArgs e){if(animating)Animate();}
     void StopAnimation(){animationCompletion.Stop();animationCompletion.Tick-=FinishAnimation;if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;}
     void RenderAnimation(object sender,EventArgs e){var frame=e as RenderingEventArgs;if(frame!=null){if(frame.RenderingTime==lastRender)return;lastRender=frame.RenderingTime;}Animate();}
     void BodyOpacity(double value){searchPage.Opacity=value;settingsPage.Opacity=value;settingsFooter.Opacity=value;}
-    void MoveTo(Rect target,Rect start,bool reduced,Action done){StopAnimation();from=start;to=target;animationDone=done;animationDuration=Math.Max(120,Math.Min(600,overview.SpotlightMotion));clock.Restart();
+    void MoveTo(Rect target,Rect start,bool reduced,Action done){StopAnimation();from=start;to=target;animationDone=done;animationDuration=Math.Max(120,Math.Min(600,overview.SpotlightMotion));clock.Restart();frameGaps.Clear();previousFrame=0;positionMilliseconds=0;transitionFrames=0;firstFrameMilliseconds=-1;
         // Keep results at their final layout size while the outer shell moves.
         // Clipping and opacity reveal them without repeatedly squeezing columns.
         bodyFrom=!settings&&searchPage.Visibility!=Visibility.Visible?0:Math.Min(start.Height<=180*dpi?0:1,settings?settingsPage.Opacity:searchPage.Opacity);bodyTo=done!=null?0:1;
         if(bodyTo>0){searchPage.Width=Math.Max(1,target.Width/dpi-2);searchPage.Height=Math.Max(1,target.Height/dpi-66);searchPage.HorizontalAlignment=HorizontalAlignment.Left;searchPage.VerticalAlignment=VerticalAlignment.Top;}
         if(reduced){Position(to);BodyOpacity(1);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeTo);fadingPreviews=false;var action=animationDone;animationDone=null;if(action!=null)action();}
-        else{if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeFrom);BodyOpacity(bodyFrom);Position(from);animating=true;CompositionTarget.Rendering+=RenderAnimation;
+        else{if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeFrom);BodyOpacity(bodyFrom);
+            // Allocate one layered buffer for the whole morph. Only its visible
+            // surface changes size; resizing the HWND each tick reallocates it.
+            Width=Math.Max(from.Width,to.Width)/dpi;Height=Math.Max(from.Height,to.Height)/dpi;
+            surface.HorizontalAlignment=HorizontalAlignment.Left;surface.VerticalAlignment=VerticalAlignment.Top;
+            surface.Width=from.Width/dpi;surface.Height=from.Height/dpi;
+            UpdateLayout();presentedBounds=from;animating=true;Position(from);CompositionTarget.Rendering+=RenderAnimation;
             // Rendering callbacks can pause when the mixed WinForms/WPF scene
             // stops producing frames. Always settle geometry and opacity.
             animationCompletion.Interval=TimeSpan.FromMilliseconds(animationDuration+16);animationCompletion.Tick+=FinishAnimation;animationCompletion.Start();}}
+    readonly List<double> frameGaps=new List<double>();
+    double previousFrame,positionMilliseconds,firstFrameMilliseconds;int transitionFrames;
+    void ReportTransition(){
+        var sorted=frameGaps.OrderBy(x=>x).ToArray();
+        Native.Log(String.Format(System.Globalization.CultureInfo.InvariantCulture,"Search transition: direction={0}, frames={1}, elapsed={2:F1}ms, median={3:F1}ms, p95={4:F1}ms, max={5:F1}ms, positionTotal={6:F1}ms, firstFrame={7:F1}ms",to.Height>from.Height?"expand":"collapse",transitionFrames,clock.Elapsed.TotalMilliseconds,sorted.Length==0?0:sorted[sorted.Length/2],sorted.Length==0?0:sorted[Math.Min(sorted.Length-1,(int)(sorted.Length*.95))],sorted.Length==0?0:sorted[sorted.Length-1],positionMilliseconds,firstFrameMilliseconds));
+    }
     bool advancingFrame;
-    void Animate(){if(advancingFrame||!animating)return;advancingFrame=true;try{double t=Math.Min(1,clock.Elapsed.TotalMilliseconds/animationDuration);double eased=t*t*t*(t*(t*6-15)+10);Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),(int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));double reveal=bodyTo>bodyFrom?Math.Max(0,Math.Min(1,(t-.18)/.66)):Math.Min(1,t/.55);reveal=reveal*reveal*(3-2*reveal);BodyOpacity(bodyFrom+(bodyTo-bodyFrom)*reveal);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)Math.Round(fadeFrom+(fadeTo-fadeFrom)*eased));if(t>=1){StopAnimation();BodyOpacity(1);fadingPreviews=false;var done=animationDone;animationDone=null;if(done!=null)done();}}finally{advancingFrame=false;}}
+    void Animate(){
+        if(advancingFrame||!animating)return;
+        advancingFrame=true;
+        try{
+            double now=clock.Elapsed.TotalMilliseconds;
+            if(firstFrameMilliseconds<0){firstFrameMilliseconds=now;animationCompletion.Stop();animationCompletion.Start();}
+            else frameGaps.Add(now-previousFrame);
+            previousFrame=now;transitionFrames++;
+            // Preparation must not consume the start of the visible motion.
+            double t=Math.Min(1,(now-firstFrameMilliseconds)/animationDuration);
+            double eased=t*t*t*(t*(t*6-15)+10);
+            var positionWatch=Stopwatch.StartNew();
+            Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),
+                (int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));
+            positionMilliseconds+=positionWatch.Elapsed.TotalMilliseconds;
+            double reveal=bodyTo>bodyFrom?Math.Max(0,Math.Min(1,(t-.18)/.66)):Math.Min(1,t/.55);
+            reveal=reveal*reveal*(3-2*reveal);BodyOpacity(bodyFrom+(bodyTo-bodyFrom)*reveal);
+            if(fadingPreviews)overview.FadeSpotlightPreviews((byte)Math.Round(fadeFrom+(fadeTo-fadeFrom)*eased));
+            if(t>=1){
+                StopAnimation();surface.Width=Double.NaN;surface.Height=Double.NaN;
+                Position(to);BodyOpacity(1);fadingPreviews=false;ReportTransition();
+                var done=animationDone;animationDone=null;if(done!=null)done();
+            }
+        }finally{advancingFrame=false;}
+    }
     void Position(Rect bounds){
         if(hwnd!=IntPtr.Zero)dpi=Math.Max(96,Native.GetDpiForWindow(hwnd))/96.0;
+        if(animating&&hwnd!=IntPtr.Zero){
+            presentedBounds=bounds;
+            surface.Width=bounds.Width/dpi;surface.Height=bounds.Height/dpi;
+            // UpdateGlass batches both HWND changes into one desktop commit.
+            UpdateGlass();return;
+        }
+        surface.Width=Double.NaN;surface.Height=Double.NaN;
         Left=bounds.X/dpi;Top=bounds.Y/dpi;Width=bounds.Width/dpi;Height=bounds.Height/dpi;
         UpdateLayout();UpdateGlass();
     }

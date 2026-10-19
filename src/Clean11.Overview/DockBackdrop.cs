@@ -21,8 +21,20 @@ sealed class DockBackdrop : Window {
         Closed+=(s,e)=>{if(material!=null)material.Dispose();};
         new WindowInteropHelper(this).EnsureHandle();
     }
-    internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
+    internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength,bool moving=false){
         if(!visible){Hide();return;}
+        if(moving&&IsVisible){
+            int x=(int)Math.Round(left*dpi),y=(int)Math.Round(top*dpi),w=(int)Math.Round(width*dpi),h=(int)Math.Round(height*dpi);
+            // Commit the content move and glass resize as one desktop update.
+            IntPtr batch=GlassNative.BeginDeferWindowPos(2);
+            if(batch!=IntPtr.Zero)batch=GlassNative.DeferWindowPos(batch,icons,IntPtr.Zero,x,y,0,0,0x15);
+            if(batch!=IntPtr.Zero)batch=GlassNative.DeferWindowPos(batch,handle,icons,x,y,w,h,0x10);
+            if(batch==IntPtr.Zero||!GlassNative.EndDeferWindowPos(batch)){
+                GlassNative.SetWindowPos(icons,IntPtr.Zero,x,y,0,0,0x15);
+                GlassNative.SetWindowPos(handle,icons,x,y,w,h,0x10);
+            }
+            Background=material.Update(width,height,dpi,glass,strength);return;
+        }
         // WPF owns geometry for the lifetime of this HWND, including reuse.
         // Native-only resizing leaves WPF's compact dimensions stale.
         Width=Math.Max(1,width);Height=Math.Max(1,height);Left=left;Top=top;
@@ -96,6 +108,9 @@ sealed class DockPopupMaterial : IDisposable {
 }
 
 static class GlassNative {
+    [DllImport("user32.dll")]internal static extern IntPtr BeginDeferWindowPos(int count);
+    [DllImport("user32.dll")]internal static extern IntPtr DeferWindowPos(IntPtr batch,IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
+    [DllImport("user32.dll")]internal static extern bool EndDeferWindowPos(IntPtr batch);
     [StructLayout(LayoutKind.Sequential)]internal struct Rect{public int Left,Top,Right,Bottom;}
     [DllImport("user32.dll")]internal static extern bool GetWindowRect(IntPtr window,out Rect rect);
     [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")]internal static extern IntPtr GetLong(IntPtr h,int index);
