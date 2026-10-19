@@ -16,9 +16,9 @@ A floating dock, a native top bar, a keyboard-first window overview, and a focus
 
 </div>
 
-![Actual Clean11 search UI showing a File Explorer sample result over a neutral background](docs/images/clean11-search-screenshot.png)
+![Clean11 top bar, expanded search with sample Windows apps, and floating dock running together](docs/images/clean11-suite-spotlight-screenshot.jpg)
 
-> **Actual app screenshots:** captured from running Clean11 components in an isolated session with sample data and a neutral background. The controls and materials are the real app UI. Personal documents, accounts, conversations, and other open windows are excluded.
+> **Actual app screenshots, staged for presentation:** the suite images capture the running top bar, search, and dock together in a dedicated capture harness, with sample Windows apps, a neutral presentation backdrop, and a fixed sample clock. Compact search and expanded results are two states of the same component, shown separately below. Personal documents, accounts, conversations, and unrelated windows are excluded.
 
 ## Proudly vibe-coded
 
@@ -47,6 +47,14 @@ Choose **Never hide**, **Auto hide**, or **Intelligent** behavior. Hiding in ful
 Typing in overview expands the top search field into a focused panel for applications, windows, files, folders, and Windows settings. Favorites and keyboard navigation keep common actions close.
 
 File-search coverage depends on the available index/provider. The optional Everything SDK is not bundled.
+
+![Clean11 top bar, compact search bar with sample favorites, and floating dock](docs/images/clean11-suite-compact-screenshot.jpg)
+
+*Compact search with favorites above; expanded search with results is shown at the top of this page. Both captures use the real Clean11 controls and shared glass material.*
+
+### Everyday controls at the top
+
+The top bar brings window actions, search, clock and calendar, Wi-Fi, Bluetooth, and sound controls into the same glass design. Select input/output devices and adjust app volumes from the integrated mixer. Advanced and device-specific controls remain available through Windows Settings.
 
 ### One place to make it yours
 
