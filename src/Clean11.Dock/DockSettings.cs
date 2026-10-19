@@ -20,7 +20,7 @@ sealed class DockSettings : Window {
     ScrollViewer pageScroll;DockBackdrop settingsGlass;readonly System.Windows.Threading.DispatcherTimer glassTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(120)};
     readonly TextBlock heading=new TextBlock(),subtitle=new TextBlock(),status=new TextBlock();
     readonly Ui.Button apply;
-    bool ready,dirty;
+    bool ready,dirty,nativeMove;
     readonly Brush ink=ActivityTheme.Brush("Text","#F1F2F5"),muted=ActivityTheme.Brush("Muted","#A6ABB5");
     Border sampleGlass;TextBlock sampleTitle,sampleDetail;Grid sampleScene;
     ComboBox material;Slider visibility,blur;Ui.ToggleSwitch glass;
@@ -61,13 +61,25 @@ sealed class DockSettings : Window {
         AddPage(nav,"Overview","Window previews and movement, tuned to your workflow.",OverviewPage());
         AddPage(nav,"Apps & search","Manage shortcuts and discover Windows settings.",AppsPage());
         AddPage(nav,"System","Startup, desktop integration, and useful controls.",SystemPage());
-        glassTimer.Tick+=(s,e)=>UpdateGlass();
+        // The timer refreshes material preferences. Native messages own movement.
+        glassTimer.Tick+=(s,e)=>{if(!nativeMove)UpdateGlass();};
+        LocationChanged+=(s,e)=>{if(!nativeMove)UpdateGlass();};
+        SizeChanged+=(s,e)=>{if(!nativeMove)UpdateGlass();};
+        StateChanged+=(s,e)=>UpdateGlass();
         IsVisibleChanged+=(s,e)=>{if(IsVisible){glassTimer.Start();UpdateGlass();}else{glassTimer.Stop();if(settingsGlass!=null)settingsGlass.Hide();}};
         Closed+=(s,e)=>{glassTimer.Stop();if(settingsGlass!=null){settingsGlass.Close();settingsGlass=null;}};
         ready=true;Select("Appearance","Materials, clarity, and a little personality.");UpdateSample();
-        SourceInitialized+=(s,e)=>{int dark=FrostedMaterial.Light?0:1,round=2;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,20,ref dark,4);DockNative.DwmSetWindowAttribute(h,33,ref round,4);};
+        SourceInitialized+=(s,e)=>{int dark=FrostedMaterial.Light?0:1,round=2;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,20,ref dark,4);DockNative.DwmSetWindowAttribute(h,33,ref round,4);HwndSource.FromHwnd(h).AddHook(SettingsMessages);};
         Loaded+=(s,e)=>{var area=SystemParameters.WorkArea;MaxHeight=area.Height;MaxWidth=area.Width;};
         Closing+=(s,e)=>{if(!dirty)return;var answer=MessageBox.Show(this,"Apply your changes before closing?","Unsaved settings",MessageBoxButton.YesNoCancel,MessageBoxImage.Question);if(answer==MessageBoxResult.Cancel)e.Cancel=true;else if(answer==MessageBoxResult.Yes){Save();e.Cancel=dirty;}};
+    }
+    IntPtr SettingsMessages(IntPtr window,int message,IntPtr w,IntPtr l,ref bool handled){
+        if(message==0x0231)nativeMove=true; // WM_ENTERSIZEMOVE
+        else if(message==0x0232){nativeMove=false;UpdateGlass();} // WM_EXITSIZEMOVE
+        else if(message==0x0046||message==0x0047){ // WM_WINDOWPOSCHANGING / CHANGED
+            if(settingsGlass!=null)settingsGlass.FollowHostPosition(window,l);
+        }else if(message==0x0005&&w.ToInt64()==1){if(settingsGlass!=null)settingsGlass.Hide();}
+        return IntPtr.Zero;
     }
     void UpdateGlass(){
         if(!IsVisible||WindowState==WindowState.Minimized){if(settingsGlass!=null)settingsGlass.Hide();return;}

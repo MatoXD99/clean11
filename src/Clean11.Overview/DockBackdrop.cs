@@ -26,6 +26,21 @@ sealed class DockBackdrop : Window {
         Background=material.Update(width,height,dpi,glass,strength);
     }
     internal void SetMotionOpacity(double value){material.SetOpacity((float)value);}
+    internal void FollowHostPosition(IntPtr host,IntPtr position){
+        if(!IsVisible||handle==IntPtr.Zero||position==IntPtr.Zero)return;
+        var next=(GlassNative.WindowPosition)Marshal.PtrToStructure(position,typeof(GlassNative.WindowPosition));
+        // Native dragging runs a modal message loop. Follow its geometry here,
+        // without waiting for a DispatcherTimer or triggering WPF layout.
+        if((next.Flags&3)==3)return;
+        GlassNative.Rect current;if(!GlassNative.GetWindowRect(host,out current))return;
+        int x=(next.Flags&2)!=0?current.Left:next.X,y=(next.Flags&2)!=0?current.Top:next.Y;
+        int width=(next.Flags&1)!=0?current.Right-current.Left:next.Width,height=(next.Flags&1)!=0?current.Bottom-current.Top:next.Height;
+        if(width<=0||height<=0)return;
+        GlassNative.Rect previous;
+        if(GlassNative.GetWindowRect(handle,out previous)&&previous.Left==x&&previous.Top==y&&previous.Right-previous.Left==width&&previous.Bottom-previous.Top==height)return;
+        // Do not preserve pixels from the old client location while moving glass.
+        GlassNative.SetWindowPos(handle,host,x,y,width,height,0x310);
+    }
     internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength,bool moving=false){
         if(!visible){Hide();return;}
         if(moving&&IsVisible){
@@ -122,6 +137,7 @@ sealed class DockPopupMaterial : IDisposable {
 }
 
 static class GlassNative {
+    [StructLayout(LayoutKind.Sequential)]internal struct WindowPosition{public IntPtr Window,After;public int X,Y,Width,Height;public uint Flags;}
     [DllImport("user32.dll")]internal static extern IntPtr BeginDeferWindowPos(int count);
     [DllImport("user32.dll")]internal static extern IntPtr DeferWindowPos(IntPtr batch,IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
     [DllImport("user32.dll")]internal static extern bool EndDeferWindowPos(IntPtr batch);
