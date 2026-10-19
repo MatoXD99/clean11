@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -48,7 +48,7 @@ sealed class SpotlightPanel : Window {
     Rect materialScreen;
     readonly ObservableCollection<SpotlightRow> rows=new ObservableCollection<SpotlightRow>();
     readonly Dictionary<string,ImageSource> icons=new Dictionary<string,ImageSource>(StringComparer.OrdinalIgnoreCase);
-    bool animating;
+    bool animating,enteringOverview;
     readonly System.Windows.Threading.DispatcherTimer dismissTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(120)};
     readonly Stopwatch clock=new Stopwatch();
     Rect from,to;Action animationDone;int animationDuration;
@@ -170,9 +170,17 @@ sealed class SpotlightPanel : Window {
     internal void FocusInput(){if(IsVisible&&!settings&&!input.IsKeyboardFocusWithin){Activate();input.Focus();Keyboard.Focus(input);}}
     internal void ShowOverview(Rect origin,bool focus=true){
         input.Visibility=Visibility.Visible;settingsHeading.Visibility=Visibility.Collapsed;
-        if(Expanded)return;StopAnimation();settings=false;input.IsReadOnly=false;searchPage.Visibility=Visibility.Collapsed;settingsPage.Visibility=Visibility.Collapsed;settingsFooter.Visibility=Visibility.Collapsed;RefreshOverview();
+        if(Expanded)return;
+        if(enteringOverview){if(focus)FocusInput();return;}
+        StopAnimation();settings=false;input.IsReadOnly=false;searchPage.Visibility=Visibility.Collapsed;settingsPage.Visibility=Visibility.Collapsed;settingsFooter.Visibility=Visibility.Collapsed;RefreshOverview();
         synchronizing=true;input.Text="";synchronizing=false;placeholder.Visibility=input.Text.Length==0?Visibility.Visible:Visibility.Collapsed;
-        Position(origin);if(!IsVisible){ApplyMaterial();ShowActivated=focus;Show();ShowActivated=true;}if(focus)FocusInput();
+        bool first=!IsVisible;
+        bool entrance=first&&!overview.SpotlightReduced;
+        var start=origin;if(entrance)start.Offset(0,-(int)Math.Round(12*dpi));
+        Position(start);
+        if(first){ApplyMaterial();root.Opacity=entrance?0:1;ShowActivated=focus;Show();ShowActivated=true;}
+        if(entrance){MoveTo(origin,start,false,null);enteringOverview=true;root.Opacity=0;}
+        if(focus)FocusInput();
     }
     internal void ShowSearch(string query,Rect origin,bool reduced){
         input.Visibility=Visibility.Visible;settingsHeading.Visibility=Visibility.Collapsed;
@@ -196,7 +204,7 @@ sealed class SpotlightPanel : Window {
     Rect Current(){if(animating)return presentedBounds;Native.Rect bounds;if(hwnd!=IntPtr.Zero&&Native.GetWindowRect(hwnd,out bounds))return bounds.Box;return new Rect((int)Math.Round(Left*dpi),(int)Math.Round(Top*dpi),Math.Max(1,(int)Math.Round(ActualWidth*dpi)),Math.Max(1,(int)Math.Round(ActualHeight*dpi)));}
     readonly System.Windows.Threading.DispatcherTimer animationCompletion=new System.Windows.Threading.DispatcherTimer();
     void FinishAnimation(object sender,EventArgs e){if(animating)Animate();}
-    void StopAnimation(){animationCompletion.Stop();animationCompletion.Tick-=FinishAnimation;if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;}
+    void StopAnimation(){animationCompletion.Stop();animationCompletion.Tick-=FinishAnimation;if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;enteringOverview=false;root.Opacity=1;}
     void RenderAnimation(object sender,EventArgs e){var frame=e as RenderingEventArgs;if(frame!=null){if(frame.RenderingTime==lastRender)return;lastRender=frame.RenderingTime;}Animate();}
     void BodyOpacity(double value){searchPage.Opacity=value;settingsPage.Opacity=value;settingsFooter.Opacity=value;}
     void MoveTo(Rect target,Rect start,bool reduced,Action done){StopAnimation();from=start;to=target;animationDone=done;animationDuration=Math.Max(120,Math.Min(600,overview.SpotlightMotion));clock.Restart();frameGaps.Clear();previousFrame=0;positionMilliseconds=0;transitionFrames=0;firstFrameMilliseconds=-1;
@@ -233,6 +241,7 @@ sealed class SpotlightPanel : Window {
             // Preparation must not consume the start of the visible motion.
             double t=Math.Min(1,(now-firstFrameMilliseconds)/animationDuration);
             double eased=t*t*t*(t*(t*6-15)+10);
+            if(enteringOverview)root.Opacity=eased;
             var positionWatch=Stopwatch.StartNew();
             Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),
                 (int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));

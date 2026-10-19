@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -686,7 +686,7 @@ partial class Overview : Form {
             exitWindow=null;exitSearchBounds=Rectangle.Empty;
             search.Text=""; selected=-1; hover=hoverClose=-1; closing=false;afterClose=null;settingsOpen=false;browsing=false;browsePath="";measureSettledPaint=false;
             Native.SendMessage(search.Handle,0x1501,new IntPtr(1),"");
-            LayoutCards();RebuildResults();openingMotion=rendering=true;search.Visible=true;chromeDirty=true;
+            LayoutCards();RebuildResults();openingMotion=rendering=true;search.Visible=diagnostic||spotlightUnavailable;searchHint.Visible=false;chromeDirty=true;
             focusHandoffArmed=true;focusRecoveryAttempts=0;lastFocusRecovery=-100;focusHandoffClock.Restart();focusSettleTimer.Start();
             // Prepare native surfaces at their desktop positions before exposing the
             // wallpaper host. Showing it first produces a wallpaper-only flash.

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -38,11 +38,12 @@ sealed class DockBackdrop : Window {
         // WPF owns geometry for the lifetime of this HWND, including reuse.
         // Native-only resizing leaves WPF's compact dimensions stale.
         Width=Math.Max(1,width);Height=Math.Max(1,height);Left=left;Top=top;
+        // Initialize glass before exposing the native client area.
+        Background=material.Update(width,height,dpi,glass,strength);
         if(!IsVisible)Show();
         // This companion has no WPF content to arrange. Geometry setters update
         // its HWND; the compositor fills it using relative visual sizes.
         GlassNative.SetWindowPos(handle,icons,0,0,0,0,0x13); // z-order only, no activation
-        Background=material.Update(width,height,dpi,glass,strength);
     }
 }
 
