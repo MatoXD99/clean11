@@ -1,4 +1,4 @@
-name: Publish preview installer
+name: Publish Clean11 alpha installer
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
       - name: Check installer database and prerequisites
         run: ./installer/Verify-Package.ps1 -Package "artifacts/installer/Clean11-$env:RELEASE_VERSION-x64.msi"
 
-      - name: Create draft with assets, then publish prerelease
+      - name: Create draft with assets, then publish alpha release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -45,8 +45,8 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $version = $env:RELEASE_VERSION
           $package = "artifacts/installer/Clean11-$version-x64.msi"
-          $title = "Clean11 v$version " + [char]0x2014 + ' First Public Preview'
-          gh release create $tag $package artifacts/installer/SHA256SUMS.txt --verify-tag --draft --prerelease --title $title --notes-file "docs/releases/$version.md"
+          $title = "Clean11 v$version " + [char]0x2014 + ' Alpha'
+          gh release create $tag $package artifacts/installer/SHA256SUMS.txt --verify-tag --draft --title $title --notes-file "docs/releases/$version.md"
           if ($LASTEXITCODE -ne 0) { throw 'Draft release creation or asset upload failed.' }
-          gh release edit $tag --draft=false
+          gh release edit $tag --draft=false --latest
           if ($LASTEXITCODE -ne 0) { throw 'Publishing failed; the release remains a draft.' }

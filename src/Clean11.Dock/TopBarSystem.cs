@@ -29,7 +29,7 @@ static class TopBarSystem {
 
 // Supported Core Audio endpoint APIs. Resolve the current endpoint per operation
 // so device changes do not leave the slider bound to an unplugged device.
-static class TopBarAudio {
+static partial class TopBarAudio {
     [ComImport,Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]class Enumerator {}
     [ComImport,Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]interface IEnumerator {
         [PreserveSig]int EnumAudioEndpoints(int flow,uint mask,out IntPtr devices);
@@ -37,6 +37,9 @@ static class TopBarAudio {
     }
     [ComImport,Guid("D666063F-1587-4E43-81F1-B948E807363F"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]interface IDevice {
         [PreserveSig]int Activate(ref Guid iid,uint context,IntPtr activation,[MarshalAs(UnmanagedType.IUnknown)]out object value);
+        [PreserveSig]int OpenPropertyStore(uint access,out IProperties properties);
+        [PreserveSig]int GetId([MarshalAs(UnmanagedType.LPWStr)]out string id);
+        [PreserveSig]int GetState(out uint state);
     }
     [ComImport,Guid("5CDF2C82-841E-4546-9722-0CF74078229A"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]interface IVolume {
         [PreserveSig]int RegisterControlChangeNotify(IntPtr callback);

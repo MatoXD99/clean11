@@ -4,7 +4,7 @@
 
 ### Windows, with room to breathe.
 
-A floating dock, a keyboard-first window overview, and a focused search experience — connected by one glass design system.
+A floating dock, a native top bar, a keyboard-first window overview, and a focused search experience — connected by one glass design system.
 
 **Windows 11 · C# / WPF · WPF UI · Active prototype**
 
@@ -50,7 +50,7 @@ File-search coverage depends on the available index/provider. The optional Every
 
 ### One place to make it yours
 
-Appearance, Dock, Overview, Apps & search, and System live together in Clean11 Settings. Shared glass visibility and blur radius apply across supported Clean11 surfaces. Choose a material, tune motion, and decide whether **Live game previews** are enabled.
+Appearance, Dock, Top Bar, Overview, Apps & search, and System live together in Clean11 Settings. Shared glass visibility and blur radius apply across supported Clean11 surfaces. Choose a material, tune motion, and decide whether **Live game previews** are enabled.
 
 ![Actual Clean11 Settings window showing Appearance, shared glass visibility, and blur radius controls](docs/images/clean11-settings-screenshot.png)
 
@@ -61,23 +61,24 @@ Appearance, Dock, Overview, Apps & search, and System live together in Clean11 S
 | **Window overview** | Live window previews, minimized cards, close actions, reversible entrance motion |
 | **Search** | Apps, windows, Windows settings, favorites, and provider-dependent file/folder results |
 | **Floating dock** | Pins, running apps, magnification, grouped previews, Downloads, and hide modes |
+| **Top bar** | Active-app actions, calendar, battery, quick controls, Wi-Fi, Bluetooth, and audio mixer |
 | **Settings** | Shared appearance, dock behavior, overview controls, and live game preview preference |
 | **Glass** | Adjustable visibility and blur, with a system fallback where composition is unavailable |
 | **Modern runtime** | Separate .NET 10 build candidate; the established app still uses .NET Framework |
 
-**This is a working prototype, not a finished desktop replacement.** A local preview MSI now packages the implemented modules; a clean Sandbox lifecycle test is still pending. Top Bar and Desktop remain planned. Optional tray and power-menu integrations use available compatibility components, with native fallbacks; see [current limitations](docs/DOCK.md).
+**This is a working prototype, not a finished desktop replacement.** A local preview MSI now packages the implemented modules; a clean Sandbox lifecycle test is still pending. The top bar and integrated device panels are included in v0.2.0 Alpha. The custom Desktop remains planned. Optional tray and power-menu integrations use available compatibility components, with native fallbacks; see [current limitations](docs/DOCK.md).
 
 ## Install the preview
 
-The MSI installs overview/search, the dock, unified Settings, runtime support DLLs, and dependency notices for the current Windows account. It adds Start-menu entries for **Clean11**, **Clean11 Settings**, and **Exit Clean11**, plus an optional sign-in startup entry. Windows 11 supplies the required .NET Framework runtime.
+The MSI installs overview/search, the dock with its integrated top bar and device panels, unified Settings, runtime support DLLs, and dependency notices for the current Windows account. It adds Start-menu entries for **Clean11**, **Clean11 Settings**, and **Exit Clean11**, plus an optional sign-in startup entry. Windows 11 supplies the required .NET Framework runtime.
 
 Download the unsigned preview MSI from [GitHub Releases](https://github.com/MatoXD99/clean11/releases). Clean Sandbox lifecycle testing is still pending. To build an installer from source:
 
 ```powershell
-.\installer\Build.ps1 -Version 0.1.0
+.\installer\Build.ps1 -Version 0.2.0
 ```
 
-The result is `artifacts/installer/Clean11-0.1.0-x64.msi`. Double-click it to install. Open Clean11 from Start; first launch opens Settings so you can choose taskbar integration. Uninstall through Windows **Installed apps**; personal preferences are retained.
+The result is `artifacts/installer/Clean11-0.2.0-x64.msi`. Double-click it to install. Open Clean11 from Start; first launch opens Settings so you can choose taskbar integration. Uninstall through Windows **Installed apps**; personal preferences are retained.
 
 See [installer validation and Windows Sandbox](docs/BUILDING.md#installer-and-windows-sandbox) for the test workflow and current release gates. The preview package is unsigned and has not yet passed a clean Sandbox install/repair/upgrade/uninstall run.
 
@@ -139,7 +140,8 @@ See [privacy and release engineering](docs/PRIVACY-AND-RELEASE.md) for the compl
 - [x] Shared glass controls and animation improvements
 - [ ] Broader performance, accessibility, and multi-monitor validation
 - [ ] Promote the modern runtime after compatibility checks
-- [ ] Clean11 Top Bar and Desktop modules
+- [x] Clean11 Top Bar with Wi-Fi, Bluetooth, and audio controls
+- [ ] Custom Desktop module
 - [x] Preview per-user MSI and unified app launcher
 - [ ] Clean Sandbox lifecycle, upgrades, and recovery validation
 - [ ] Signed public installer release
