@@ -10,13 +10,15 @@ A floating dock, a keyboard-first window overview, and a focused search experien
 
 **Proudly vibe-coded with OpenAI Codex. Human vision. AI collaboration. Obsessive iteration.**
 
+**[☕ Buy me a coffee](https://buymeacoffee.com/matoxd99)**
+
 [Why we vibe-code](#proudly-vibe-coded) · [Explore the features](#a-calmer-everyday-desktop) · [Build from source](#build-from-source) · [Roadmap](#whats-next) · [Documentation](#documentation)
 
 </div>
 
-![Clean11 desktop illustration: floating search, an organized window overview, and an icon-only dock](docs/images/clean11-desktop.png)
+![Actual Clean11 search UI showing a File Explorer sample result over a neutral background](docs/images/clean11-search-screenshot.png)
 
-> **About the images:** these are original, illustrative previews with synthetic content, not screenshots of a real desktop. They communicate the design direction; the running prototype can differ. No personal documents, accounts, conversations, wallpaper captures, or third-party reference screenshots are included.
+> **Actual app screenshots:** captured from running Clean11 components in an isolated session with sample data and a neutral background. The controls and materials are the real app UI. Personal documents, accounts, conversations, and other open windows are excluded.
 
 ## Proudly vibe-coded
 
@@ -50,7 +52,7 @@ File-search coverage depends on the available index/provider. The optional Every
 
 Appearance, Dock, Overview, Apps & search, and System live together in Clean11 Settings. Shared glass visibility and blur radius apply across supported Clean11 surfaces. Choose a material, tune motion, and decide whether **Live game previews** are enabled.
 
-![Clean11 Settings illustration showing Appearance, shared glass visibility, and blur radius controls](docs/images/clean11-settings.png)
+![Actual Clean11 Settings window showing Appearance, shared glass visibility, and blur radius controls](docs/images/clean11-settings-screenshot.png)
 
 ## What works today
 
@@ -63,7 +65,21 @@ Appearance, Dock, Overview, Apps & search, and System live together in Clean11 S
 | **Glass** | Adjustable visibility and blur, with a system fallback where composition is unavailable |
 | **Modern runtime** | Separate .NET 10 build candidate; the established app still uses .NET Framework |
 
-**This is a working prototype, not a finished desktop replacement.** Top Bar, Desktop, and public EXE/MSI installers remain planned. Some tray and power-menu actions still use compatibility integrations; see [current limitations](docs/DOCK.md).
+**This is a working prototype, not a finished desktop replacement.** A local preview MSI now packages the implemented modules; a clean Sandbox lifecycle test is still pending. Top Bar and Desktop remain planned. Optional tray and power-menu integrations use available compatibility components, with native fallbacks; see [current limitations](docs/DOCK.md).
+
+## Install the preview
+
+The MSI installs overview/search, the dock, unified Settings, runtime support DLLs, and dependency notices for the current Windows account. It adds Start-menu entries for **Clean11**, **Clean11 Settings**, and **Exit Clean11**, plus an optional sign-in startup entry. Windows 11 supplies the required .NET Framework runtime.
+
+Download the unsigned preview MSI from [GitHub Releases](https://github.com/MatoXD99/clean11/releases). Clean Sandbox lifecycle testing is still pending. To build an installer from source:
+
+```powershell
+.\installer\Build.ps1 -Version 0.1.0
+```
+
+The result is `artifacts/installer/Clean11-0.1.0-x64.msi`. Double-click it to install. Open Clean11 from Start; first launch opens Settings so you can choose taskbar integration. Uninstall through Windows **Installed apps**; personal preferences are retained.
+
+See [installer validation and Windows Sandbox](docs/BUILDING.md#installer-and-windows-sandbox) for the test workflow and current release gates. The preview package is unsigned and has not yet passed a clean Sandbox install/repair/upgrade/uninstall run.
 
 ## Build from source
 
@@ -110,7 +126,7 @@ Performance work focuses on reducing preparation, keeping file I/O out of animat
 ## Privacy by design
 
 - Core use requires no Clean11 account; personal settings and search state stay in per-user local storage.
-- The repository contains source, documentation, license notices, and original synthetic illustrations.
+- The repository contains source, documentation, license notices, and reviewed app screenshots captured with sample content.
 - Private configuration, logs, traces, keys, generated binaries, and build caches are excluded from source control.
 - Before sharing a bug report, remove personal window titles, file paths, queries, and account details from screenshots or logs.
 
@@ -124,7 +140,9 @@ See [privacy and release engineering](docs/PRIVACY-AND-RELEASE.md) for the compl
 - [ ] Broader performance, accessibility, and multi-monitor validation
 - [ ] Promote the modern runtime after compatibility checks
 - [ ] Clean11 Top Bar and Desktop modules
-- [ ] EXE/MSI packaging, upgrades, and recovery validation
+- [x] Preview per-user MSI and unified app launcher
+- [ ] Clean Sandbox lifecycle, upgrades, and recovery validation
+- [ ] Signed public installer release
 
 Follow the [delivery roadmap](docs/ROADMAP.md) for the larger desktop-suite plan. Planned features are not included in the current prototype unless marked above.
 
@@ -139,6 +157,10 @@ Follow the [delivery roadmap](docs/ROADMAP.md) for the larger desktop-suite plan
 | [Architecture](docs/ARCHITECTURE.md) | Module boundaries and Windows integration |
 | [Privacy & releases](docs/PRIVACY-AND-RELEASE.md) | Repository hygiene and distribution requirements |
 
+## Support Clean11
+
+Enjoying Clean11? [☕ Buy me a coffee](https://buymeacoffee.com/matoxd99) and fuel the next coding session. Every tip is appreciated and helps keep the project moving.
+
 ## Credits & licensing
 
 Clean11 uses **[WPF UI](https://github.com/lepoco/wpfui)** by Leszek Pomianowski and the WPF UI Contributors, licensed under MIT. Its controls and themes are a foundation of the project. The required [license](licenses/WPF-UI-LICENSE.txt) and [third-party notices](THIRD-PARTY-NOTICES.md) are retained.
@@ -147,4 +169,4 @@ Adapted components also credit Flow Launcher / Wox and WindowScatter. See the no
 
 **A license for Clean11's own code has not yet been selected.** Dependency licenses apply to their respective components and do not automatically license the whole repository. Public source availability alone is not a broad reuse grant.
 
-The README illustrations are original Clean11 documentation artwork, drawn from synthetic examples with [the included generator](tools/Render-Readme.py). They contain no copied vendor wallpapers, logos, or reference screenshots.
+The README screenshots show the running Clean11 UI with neutral sample content. They were reviewed for personal information and contain no embedded image metadata. No third-party reference screenshots or vendor wallpapers are bundled.
