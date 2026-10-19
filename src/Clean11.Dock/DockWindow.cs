@@ -31,6 +31,7 @@ sealed class DockWindow : Window {
     readonly DockAppBar appbar=new DockAppBar();readonly DispatcherTimer pulse=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(150)};
     readonly DispatcherTimer refresh=new DispatcherTimer{Interval=TimeSpan.FromSeconds(1.5)},hoverDelay=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)};
     DockBackdrop glassBackdrop;
+    TopBarWindow topBar;
     readonly Canvas strip=new Canvas();readonly Border backdrop;readonly List<DockTile> tiles=new List<DockTile>();
     readonly BlockingCollection<string> iconRequests=new BlockingCollection<string>();readonly Dictionary<string,BitmapSource> icons=new Dictionary<string,BitmapSource>(StringComparer.OrdinalIgnoreCase);readonly HashSet<string> pending=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     readonly Forms.NotifyIcon notification;List<DockAppWindow> windows=new List<DockAppWindow>();List<DockGroup> groups=new List<DockGroup>();
@@ -62,7 +63,7 @@ sealed class DockWindow : Window {
         notification=new Forms.NotifyIcon{Text="Clean11 Dock",Icon=System.Drawing.SystemIcons.Application,Visible=true};notification.MouseClick+=(s,e)=>{if(e.Button==Forms.MouseButtons.Left)ShowSettings();else OpenMenu(SettingsMenu(),this);};
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=DisplayChanged;
         Closing+=(s,e)=>{if(!disposed&&!shutdownRequested){e.Cancel=true;RequestShutdown();}};
-        Show();pulse.Start();refresh.Start();RefreshWindows();DockLog.Write("Dock window ready without activation; "+State.Pins.Count+" pinned items.");
+        Show();topBar=new TopBarWindow(this);topBar.ApplySettings();pulse.Start();refresh.Start();RefreshWindows();DockLog.Write("Dock window ready without activation; "+State.Pins.Count+" pinned items.");
     }
     IntPtr Messages(IntPtr h,int message,IntPtr w,IntPtr l,ref bool handled){if(message==0x02E0){dpi=(w.ToInt64()&0xffff)/96.0;Dispatcher.BeginInvoke((Action)Rebuild);}return IntPtr.Zero;}
     void DisplayChanged(object s,EventArgs e){try{Dispatcher.BeginInvoke((Action)(()=>{Lease.Release();Rebuild();}));}catch{}}
@@ -180,11 +181,11 @@ sealed class DockWindow : Window {
         backdrop.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));backdrop.BorderThickness=new Thickness(1);backdrop.CornerRadius=new CornerRadius(ActivityTheme.GlassRadius);backdrop.BorderBrush=FrostedMaterial.Edge();
         foreach(var tile in tiles){if(tile.Group==null){var frame=tile.Icon as Border;if(frame!=null){var glyph=frame.Child as Ui.SymbolIcon;if(glyph!=null)glyph.Foreground=new SolidColorBrush(FrostedMaterial.Ink(true));}}}
     }
-    internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();}
+    internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();if(topBar!=null)topBar.ApplySettings();}
     internal void RequestShutdown(){
         if(shutdownRequested)return;
         if(settings!=null){settings.Close();if(settings!=null&&settings.IsVisible)return;}
         shutdownRequested=true;Application.Current.Shutdown();
     }
-    internal void DisposeDock(){trayAppearance.Dispose();if(disposed)return;disposed=true;if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
+    internal void DisposeDock(){trayAppearance.Dispose();if(disposed)return;disposed=true;if(topBar!=null){topBar.Close();topBar=null;}if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
 }

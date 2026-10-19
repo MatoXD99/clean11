@@ -12,6 +12,8 @@ sealed class DockPin {
 sealed class DockState {
     public int Version=1,IconSize=40,PreviewColumns=3;public double Magnification=1.22;
     public string Visibility="Intelligent",Monitor="";
+    public bool TopBarEnabled=true,TopBarHideInFullscreen=true,TopBarReserveSpace=true,TopBarShowActiveApp=true,TopBarShowNetwork=true,TopBarShowBattery=true,TopBarShowSeconds=false;
+    public string TopBarMonitor="";
     public bool HideInFullscreen=true,ReducedMotion=false,ShowDownloads=true,ShowRecycleBin=true,ShowBackgroundApps=true,TakeOver=true,Startup=true;
     public List<DockPin> Pins=new List<DockPin>();
     internal static readonly string Root=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Clean11","Dock");
