@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -47,7 +47,7 @@ static class FrostedMaterial {
         try{
             string path=WallpaperPath(screen);string style="10",tile="0";
             using(var key=Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop")){if(key!=null){style=Convert.ToString(key.GetValue("WallpaperStyle","10"));tile=Convert.ToString(key.GetValue("TileWallpaper","0"));}}
-            string next=OverviewPreferences.Load().BlurRadius+"|"+screen.ToString()+"|"+path+"|"+(File.Exists(path)?File.GetLastWriteTimeUtc(path).Ticks:0)+"|"+style+"|"+tile;
+            string next=OverviewPreferences.Appearance.Radius+"|"+screen.ToString()+"|"+path+"|"+(File.Exists(path)?File.GetLastWriteTimeUtc(path).Ticks:0)+"|"+style+"|"+tile;
             if(next!=signature){
                 wallpaper=Load(path,screen,style,tile);signature=next;
                 Trace.WriteLine("Frosted wallpaper material cached; screen="+screen.Width+"x"+screen.Height+", available="+(wallpaper!=null));
@@ -78,16 +78,19 @@ static class FrostedMaterial {
             }
         }
         var original=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);original.Render(drawing);original.Freeze();
-        var blur=new System.Windows.Controls.Image{Source=original,Width=width,Height=height,Stretch=Stretch.Fill,Effect=new BlurEffect{Radius=OverviewPreferences.Load().BlurRadius*scale,KernelType=KernelType.Gaussian,RenderingBias=RenderingBias.Performance}};
+        var blur=new System.Windows.Controls.Image{Source=original,Width=width,Height=height,Stretch=Stretch.Fill,Effect=new BlurEffect{Radius=OverviewPreferences.Appearance.Radius*scale,KernelType=KernelType.Gaussian,RenderingBias=RenderingBias.Performance}};
         blur.Measure(new Size(width,height));blur.Arrange(new Rect(0,0,width,height));
         var result=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);result.Render(blur);result.Freeze();return result;
     }
     internal static void Position(ImageBrush brush,Drawing.Rectangle bounds,Drawing.Rectangle screen){if(brush==null||screen.Width<=0||screen.Height<=0)return;brush.Viewbox=new Rect((bounds.Left-screen.Left)/(double)screen.Width,(bounds.Top-screen.Top)/(double)screen.Height,bounds.Width/(double)screen.Width,bounds.Height/(double)screen.Height);}
-    internal static bool Enabled(bool preference){
-        if(!preference||SystemParameters.HighContrast)return false;
-        try{using(var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))return key==null||Convert.ToInt32(key.GetValue("EnableTransparency",1))!=0;}catch{return true;}
+    static volatile bool systemTransparency=true;
+    static FrostedMaterial(){
+        RefreshSystemTransparency();
+        Microsoft.Win32.SystemEvents.UserPreferenceChanged+=(s,e)=>System.Threading.ThreadPool.QueueUserWorkItem(_=>RefreshSystemTransparency());
     }
-    internal static bool Light {get{try{var prefs=OverviewPreferences.Load();return prefs.GlassStyle=="Pearl"&&Enabled(prefs.Glass);}catch{return false;}}}
+    static void RefreshSystemTransparency(){try{using(var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))systemTransparency=key==null||Convert.ToInt32(key.GetValue("EnableTransparency",1))!=0;}catch{systemTransparency=true;}}
+    internal static bool Enabled(bool preference){return preference&&systemTransparency&&!SystemParameters.HighContrast;}
+    internal static bool Light {get{var prefs=OverviewPreferences.Appearance;return prefs.Light&&Enabled(prefs.Glass);}}
     internal static Color Ink(bool secondary){return Light?(secondary?Color.FromRgb(62,79,96):Color.FromRgb(19,35,51)):(secondary?Color.FromRgb(186,203,219):Color.FromRgb(244,249,255));}
     // Semantic colours are shared by controls, Settings, search and dock panels.
     internal static bool TryColor(string key,out Color color){
@@ -106,14 +109,16 @@ static class FrostedMaterial {
     }
     internal static Color Tone {get{return Light?Color.FromRgb(222,235,244):Color.FromRgb(23,36,51);}}
     internal static byte TintAlpha(int strength){return (byte)Math.Round(255*(.22+.58*(1-Math.Max(0,Math.Min(100,strength))/100.0)));}
+    static Brush lightEdge,darkEdge;
     internal static Brush Edge(){
+        bool light=Light;var cached=light?lightEdge:darkEdge;if(cached!=null)return cached;
         var brush=new LinearGradientBrush();brush.StartPoint=new Point(0,0);brush.EndPoint=new Point(.4,1);
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb(Light?(byte)185:(byte)105,233,248,255),0));
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(light?(byte)185:(byte)105,233,248,255),0));
         brush.GradientStops.Add(new GradientStop(Color.FromArgb(24,146,197,226),.48));
-        brush.GradientStops.Add(new GradientStop(Color.FromArgb(75,15,35,55),1));brush.Freeze();return brush;
+        brush.GradientStops.Add(new GradientStop(Color.FromArgb(75,15,35,55),1));brush.Freeze();if(light)lightEdge=brush;else darkEdge=brush;return brush;
     }
     internal static Brush Tint(){
-        int strength=60;try{strength=OverviewPreferences.Load().GlassStrength;}catch{}
+        int strength=60;try{strength=OverviewPreferences.Appearance.Strength;}catch{}
         return Tint(Tone,strength,true);
     }
     internal static Brush Tint(Color tone,int strength,bool enabled){

@@ -534,7 +534,7 @@ partial class Overview : Form {
     internal static double MotionCurve(double progress) {double p=Math.Max(0,Math.Min(1,progress));return 1-Math.Pow(1-p,3);}
     void StartMotion(double resume=-1) {
         StopMotion();
-        motionPaintMs=0;motionPaintCoalesces=0;
+        motionPaintMs=0;motionPaintCoalesces=0;PerformanceEvents.Log.TransitionBegin(closing?"overview-close":"overview-open");
         var cancellation=new CancellationTokenSource();motionCancellation=cancellation;
         var token=cancellation.Token;int epoch=Volatile.Read(ref motionEpoch);
         var surfaces=CaptureSurfaces();bool reverse=closing;IntPtr renderHost=previewHost.Handle;
@@ -563,7 +563,8 @@ partial class Overview : Form {
                         if(token.IsCancellationRequested||epoch!=Volatile.Read(ref motionEpoch))return;
                         ApplySurfaces(surfaces,eased,true);motionProgress=progress;
                     }
-                    updates+=(Stopwatch.GetTimestamp()-updateStart)*1000.0/Stopwatch.Frequency;count++;
+                    double workMs=(Stopwatch.GetTimestamp()-updateStart)*1000.0/Stopwatch.Frequency;updates+=workMs;count++;
+                    PerformanceEvents.Log.Frame("overview",progress,workMs);
                     if(Interlocked.CompareExchange(ref badgeFramePending,1,0)==0){
                         double badgeProgress=eased;
                         BeginInvoke((Action)(()=>{try{if(!shuttingDown&&!token.IsCancellationRequested&&epoch==Volatile.Read(ref motionEpoch))UpdateMotionBadges(badgeProgress);}finally{Interlocked.Exchange(ref badgeFramePending,0);}}));
@@ -593,6 +594,7 @@ partial class Overview : Form {
                     Native.Log("Presentation synchronization: successful batches="+presentBatches+", failures="+presentFailures+", total wait ms="+presentWaitMs.ToString("F1")+" (wait completion does not identify individual panel frames)");
                     Native.Log("Renderer: separate non-layered DWM host; cubic ease-out; aspect-locked scaling; tiny native host commits; live wallpaper="+previewHost.LiveWallpaper);
                     if(hasComposition&&compositionValid)Native.Log("DWM desktop timing: refresh Hz="+compositionAfter.RefreshHz.ToString("F3")+", compose Hz="+compositionAfter.ComposeHz.ToString("F3")+", composed delta="+(compositionAfter.Frame-compositionBefore.Frame)+", confirmed delta="+(compositionAfter.FrameConfirmed-compositionBefore.FrameConfirmed)+", late delta="+(compositionAfter.FramesLate-compositionBefore.FramesLate)+" (global counters, not panel FPS)");
+                    PerformanceEvents.Log.TransitionEnd(reverse?"overview-close":"overview-open",clock.Elapsed.TotalMilliseconds);
                     if(reverse)CompleteClose();else FinishEntrance();
                 }));
               }
@@ -646,6 +648,7 @@ partial class Overview : Form {
         });thread.IsBackground=true;thread.SetApartmentState(ApartmentState.STA);thread.Start();
     }
     public void Toggle() {
+        PerformanceEvents.Log.Input("overview-toggle");
         Native.Log("Toggle received: visible="+Visible+", opening="+openingMotion+", closing="+closing+", rendering="+rendering);
         if(rendering){if(openingMotion&&!closing)EndOverview(null);return;}
         if(Visible)EndOverview(null); else BeginOverview();
@@ -863,7 +866,7 @@ partial class Overview : Form {
         StopFocusHandoff();bool interrupted=openingMotion;
         double resume=1;
         if(interrupted){StopMotion();lock(motionFrameGate)resume=motionProgress;openingMotion=false;Native.Log("Overview entrance reversed at progress="+resume.ToString("F3",System.Globalization.CultureInfo.InvariantCulture));}
-        closing=true;HideSpotlight();
+        closing=true;
         afterClose=next;closing=true;rendering=true;search.Visible=false;searchHint.Visible=false;
         Interlocked.Increment(ref closeGeneration);
         // A search result has no large preview to animate back from.
@@ -872,8 +875,9 @@ partial class Overview : Form {
         // Present the replacement before removing the settled preview hosts.
         // Otherwise the desktop is exposed for a frame at the start of exit.
         if(!interrupted)Native.DwmFlush();
-        HideRoundedPreviews();
+        HideRoundedPreviews(true);
         Redraw();Update();
+        if(spotlight!=null)spotlight.BeginOverviewExit(MotionCurve(resume));
         StartMotion(resume);
     }
     void CompleteClose() {
@@ -1487,9 +1491,11 @@ static class Program {
         if(args.Contains("--use-windows-search")){SearchMode.SetWindows(true);Signal(3);return 0;}
         if(args.Contains("--use-activities-search")){SearchMode.SetWindows(false);return 0;}
         if(args.Contains("--shutdown")){Signal(3);return 0;}
+        if(args.Contains("--hide")){Signal(2);return 0;}
         if(args.Contains("--power-menu")){DesktopActions.PowerMenu();return 0;}
         if(args.Contains("--refresh-settings")){SettingsCatalog.Refresh(true);while(SettingsCatalog.IsRefreshing)System.Threading.Thread.Sleep(100);return 0;}
         if(args.Contains("--self-test"))return SelfTest();
+        if(args.Contains("--graphics-self-test"))return GraphicsSelfTest();
         if(SearchMode.Windows){if(!args.Contains("--background"))SearchMode.OpenWindows();return 0;}
         string pipeName=PipeName();
         bool created;using(var mutex=new Mutex(true,"Local\\"+pipeName,out created)) {
@@ -1500,7 +1506,24 @@ static class Program {
     // Keep WinForms/Overview types out of the short-lived signaling entry point:
     // JIT-compiling that entry point used to load the full UI stack on every Super.
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static int GraphicsSelfTest(){
+        try{
+            Clean11Fluent.Ensure();
+            var window=new System.Windows.Window{Width=320,Height=160,WindowStyle=System.Windows.WindowStyle.None,ShowInTaskbar=false};
+            try{var handle=new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+                Clean11Fluent.Apply(window);var palette=window.Resources["Text"];Clean11Fluent.RefreshPalette(window);
+                if(!Object.ReferenceEquals(palette,window.Resources["Text"]))throw new InvalidOperationException("Unchanged palette was rebuilt.");
+                for(int i=0;i<10;i++)using(var composition=new DockComposition(handle,true)){composition.Update(320,160,8,140);composition.Reveal(160);composition.SetOpacity(.5f);composition.FinishReveal();composition.SetVisible(false);}
+            }finally{window.Close();}
+            File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"graphics-self-test.txt"),"Passed hidden composition initialization, material update and animation API checks. This does not measure presentation FPS.");return 0;
+        }catch(Exception error){File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"graphics-self-test.txt"),error.ToString());return 1;}
+    }
     static int SelfTest() {
+            var serializer=new JavaScriptSerializer();var preferences=new OverviewPreferences{GlassStrength=37,BlurRadius=12,CompositionMotion=true};
+            var restored=serializer.Deserialize<OverviewPreferences>(serializer.Serialize(preferences));
+            if(restored.GlassStrength!=37||restored.BlurRadius!=12||!restored.CompositionMotion)return 4;
+            var values=serializer.Deserialize<Dictionary<string,object>>("{\"enabled\":true,\"count\":7,\"names\":[\"a\",\"b\"]}");
+            if(!(values["enabled"] is bool)||Convert.ToInt32(values["count"])!=7)return 5;
             var fit=Overview.Fit(new System.Drawing.Size(900,1600),new Rectangle(100,200,320,180));
             if(fit.Height!=180||fit.Width!=101||fit.X!=209)return 1;
             var a=new Rectangle(-2560,0,1280,1440);var b=new Rectangle(100,200,320,180);

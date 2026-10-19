@@ -77,7 +77,7 @@ partial class Overview {
         }
     }
 
-    void HideRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Hide();foreach(var badge in previewBadges.Values)badge.Hide();}
+    void HideRoundedPreviews(bool keepBadges=false){foreach(var preview in roundedPreviews.Values)preview.Hide();if(!keepBadges)foreach(var badge in previewBadges.Values)badge.Hide();}
     void ReleaseRoundedPreview(IntPtr window){ReleaseSpotlightBadge(window);RoundedPreview preview;if(roundedPreviews.TryGetValue(window,out preview)){preview.Dispose();roundedPreviews.Remove(window);}}
     void ReleaseRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Dispose();roundedPreviews.Clear();foreach(var badge in previewBadges.Values)badge.Hide();}
     void UpdateRoundedPreviews(){

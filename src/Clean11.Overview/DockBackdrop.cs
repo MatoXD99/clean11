@@ -21,6 +21,11 @@ sealed class DockBackdrop : Window {
         Closed+=(s,e)=>{if(material!=null)material.Dispose();};
         new WindowInteropHelper(this).EnsureHandle();
     }
+    internal void Prepare(double width,double height,double dpi,bool glass,int strength){
+        if(IsVisible)return;
+        Background=material.Update(width,height,dpi,glass,strength);
+    }
+    internal void SetMotionOpacity(double value){material.SetOpacity((float)value);}
     internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength,bool moving=false){
         if(!visible){Hide();return;}
         if(moving&&IsVisible){
@@ -40,7 +45,12 @@ sealed class DockBackdrop : Window {
         Width=Math.Max(1,width);Height=Math.Max(1,height);Left=left;Top=top;
         // Initialize glass before exposing the native client area.
         Background=material.Update(width,height,dpi,glass,strength);
-        if(!IsVisible)Show();
+        if(!IsVisible){
+            var appearance=OverviewPreferences.Appearance;
+            if(appearance.CompositionMotion&&!OverviewPreferences.Load().ReducedMotion)material.Reveal(appearance.Duration);
+            else material.FinishReveal();
+            Show();
+        }
         // This companion has no WPF content to arrange. Geometry setters update
         // its HWND; the compositor fills it using relative visual sizes.
         GlassNative.SetWindowPos(handle,icons,0,0,0,0,0x13); // z-order only, no activation
@@ -80,7 +90,7 @@ sealed class DockPopupMaterial : IDisposable {
     }
     internal DockPopupMaterial(IntPtr window,bool above=false){handle=window;aboveContent=above;HwndSource.FromHwnd(handle).CompositionTarget.BackgroundColor=Colors.Transparent;}
     internal Brush Update(double width,double height,double dpi,bool glass,int strength){
-        int radius=8;try{radius=OverviewPreferences.Load().BlurRadius;}catch{}
+        int radius=OverviewPreferences.Appearance.Radius;
         var tone=FrostedMaterial.Tone;
         // Size changes are handled by the relative composition tree. Reapplying
         // native blur/frame policy on every animation frame stalls composition.
@@ -105,6 +115,9 @@ sealed class DockPopupMaterial : IDisposable {
         lastGlass=glass;lastStrength=strength;lastRadius=radius;lastDpi=dpi;lastTone=tone;materialReady=true;
         return currentBrush;
     }
+    internal void Reveal(int duration){if(composition!=null)composition.Reveal(duration);}
+    internal void FinishReveal(){if(composition!=null)composition.FinishReveal();}
+    internal void SetOpacity(float value){if(composition!=null)composition.SetOpacity(value);}
     public void Dispose(){if(composition!=null)composition.Dispose();}
 }
 

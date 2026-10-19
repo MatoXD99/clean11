@@ -136,7 +136,7 @@ sealed class SpotlightPanel : Window {
     readonly System.Windows.Threading.DispatcherTimer materialTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)};
     string materialKey="";
     string lastFrame="";
-    string MaterialKey(OverviewPreferences p){return p.Glass+"|"+p.GlassStyle+"|"+p.GlassStrength+"|"+p.BlurRadius;}
+    string MaterialKey(OverviewPreferences p){return p.Glass+"|"+p.GlassStyle+"|"+p.GlassStrength+"|"+p.BlurRadius+"|"+FrostedMaterial.Enabled(p.Glass);}
     void UpdateGlass(){
         if(hwnd==IntPtr.Zero||!IsVisible){if(glassBackdrop!=null)glassBackdrop.Hide();return;}
         if(glassPreferences==null)glassPreferences=OverviewPreferences.Load();
@@ -145,6 +145,8 @@ sealed class SpotlightPanel : Window {
         glassBackdrop.Update(hwnd,bounds.Left/dpi,bounds.Top/dpi,bounds.Width/dpi,bounds.Height/dpi,dpi,true,FrostedMaterial.Enabled(glassPreferences.Glass),glassPreferences.GlassStrength,animating);
     }
     internal void ApplyMaterial(){
+        var nextPreferences=OverviewPreferences.Load();var nextKey=MaterialKey(nextPreferences);
+        if(materialKey==nextKey){UpdateGlass();return;}
         Clean11Fluent.RefreshPalette(this);
         // Styles may freeze their brushes. Replace resources rather than mutate them.
         var oldText=TextBrush;var oldMuted=Muted;
@@ -163,6 +165,9 @@ sealed class SpotlightPanel : Window {
     internal void WarmHidden(){
         if(IsVisible)return;Width=940;Height=548;new WindowInteropHelper(this).EnsureHandle();
         surface.Measure(new Size(940,548));surface.Arrange(new System.Windows.Rect(0,0,940,548));surface.UpdateLayout();
+        if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(overview.Handle);}
+        var appearance=OverviewPreferences.Appearance;
+        glassBackdrop.Prepare(940,548,dpi,FrostedMaterial.Enabled(appearance.Glass),appearance.Strength);
         Native.Log("Spotlight alpha material and keyboard surface warmed while hidden");
     }
     Rect Target(bool settingsMode){var work=Forms.Screen.FromHandle(overview.Handle).WorkingArea;double factor=Native.GetDpiForWindow(overview.Handle)/96.0;int width=Math.Min(work.Width-40,(int)((settingsMode?760:800)*factor));int height=Math.Min(work.Height-70,(int)((settingsMode?600:474)*factor));return new Rect(work.Left+(work.Width-width)/2,work.Top+(work.Height-height)/2,Math.Max(320,width),Math.Max(240,height));}
@@ -207,7 +212,7 @@ sealed class SpotlightPanel : Window {
     void StopAnimation(){animationCompletion.Stop();animationCompletion.Tick-=FinishAnimation;if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;enteringOverview=false;root.Opacity=1;}
     void RenderAnimation(object sender,EventArgs e){var frame=e as RenderingEventArgs;if(frame!=null){if(frame.RenderingTime==lastRender)return;lastRender=frame.RenderingTime;}Animate();}
     void BodyOpacity(double value){searchPage.Opacity=value;settingsPage.Opacity=value;settingsFooter.Opacity=value;}
-    void MoveTo(Rect target,Rect start,bool reduced,Action done){StopAnimation();from=start;to=target;animationDone=done;animationDuration=Math.Max(120,Math.Min(600,overview.SpotlightMotion));clock.Restart();frameGaps.Clear();previousFrame=0;positionMilliseconds=0;transitionFrames=0;firstFrameMilliseconds=-1;
+    void MoveTo(Rect target,Rect start,bool reduced,Action done){StopAnimation();from=start;to=target;animationDone=done;animationDuration=Math.Max(120,Math.Min(600,overview.SpotlightMotion));clock.Restart();PerformanceEvents.Log.TransitionBegin("search");frameGaps.Clear();previousFrame=0;positionMilliseconds=0;transitionFrames=0;firstFrameMilliseconds=-1;
         // Keep results at their final layout size while the outer shell moves.
         // Clipping and opacity reveal them without repeatedly squeezing columns.
         bodyFrom=!settings&&searchPage.Visibility!=Visibility.Visible?0:Math.Min(start.Height<=180*dpi?0:1,settings?settingsPage.Opacity:searchPage.Opacity);bodyTo=done!=null?0:1;
@@ -226,6 +231,7 @@ sealed class SpotlightPanel : Window {
     readonly List<double> frameGaps=new List<double>();
     double previousFrame,positionMilliseconds,firstFrameMilliseconds;int transitionFrames;
     void ReportTransition(){
+        PerformanceEvents.Log.TransitionEnd("search",clock.Elapsed.TotalMilliseconds);
         var sorted=frameGaps.OrderBy(x=>x).ToArray();
         Native.Log(String.Format(System.Globalization.CultureInfo.InvariantCulture,"Search transition: direction={0}, frames={1}, elapsed={2:F1}ms, median={3:F1}ms, p95={4:F1}ms, max={5:F1}ms, positionTotal={6:F1}ms, firstFrame={7:F1}ms",to.Height>from.Height?"expand":"collapse",transitionFrames,clock.Elapsed.TotalMilliseconds,sorted.Length==0?0:sorted[sorted.Length/2],sorted.Length==0?0:sorted[Math.Min(sorted.Length-1,(int)(sorted.Length*.95))],sorted.Length==0?0:sorted[sorted.Length-1],positionMilliseconds,firstFrameMilliseconds));
     }
@@ -245,7 +251,7 @@ sealed class SpotlightPanel : Window {
             var positionWatch=Stopwatch.StartNew();
             Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),
                 (int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));
-            positionMilliseconds+=positionWatch.Elapsed.TotalMilliseconds;
+            positionMilliseconds+=positionWatch.Elapsed.TotalMilliseconds;PerformanceEvents.Log.Frame("search",t,positionWatch.Elapsed.TotalMilliseconds);
             double reveal=bodyTo>bodyFrom?Math.Max(0,Math.Min(1,(t-.18)/.66)):Math.Min(1,t/.55);
             reveal=reveal*reveal*(3-2*reveal);BodyOpacity(bodyFrom+(bodyTo-bodyFrom)*reveal);
             if(fadingPreviews)overview.FadeSpotlightPreviews((byte)Math.Round(fadeFrom+(fadeTo-fadeFrom)*eased));
@@ -268,7 +274,22 @@ sealed class SpotlightPanel : Window {
         Left=bounds.X/dpi;Top=bounds.Y/dpi;Width=bounds.Width/dpi;Height=bounds.Height/dpi;
         UpdateLayout();UpdateGlass();
     }
-    internal void HidePanel(){StopAnimation();dismissTimer.Stop();animationDone=null;fadingPreviews=false;Expanded=false;previewGeneration++;if(activeMenu!=null)activeMenu.IsOpen=false;if(IsVisible)Hide();}
+    Rect exitOrigin;double exitProgress,exitOpacity;bool exitingOverview;
+    internal void BeginOverviewExit(double progress){
+        if(!IsVisible)return;
+        exitOrigin=Current();exitOpacity=root.Opacity;exitProgress=Math.Max(.001,progress);
+        StopAnimation();dismissTimer.Stop();animationDone=null;fadingPreviews=false;
+        exitingOverview=true;animating=true;presentedBounds=exitOrigin;IsHitTestVisible=false;
+        UpdateOverviewExit(progress);
+    }
+    internal void UpdateOverviewExit(double progress){
+        if(!exitingOverview||!IsVisible)return;
+        double fraction=Math.Max(0,Math.Min(1,progress/exitProgress));
+        root.Opacity=exitOpacity*fraction;
+        var bounds=exitOrigin;bounds.Offset(0,-(int)Math.Round(12*dpi*(1-fraction)));Position(bounds);
+        if(glassBackdrop!=null)glassBackdrop.SetMotionOpacity(fraction);
+    }
+    internal void HidePanel(){StopAnimation();exitingOverview=false;IsHitTestVisible=true;dismissTimer.Stop();animationDone=null;fadingPreviews=false;Expanded=false;previewGeneration++;if(activeMenu!=null)activeMenu.IsOpen=false;if(IsVisible)Hide();}
     internal void Shutdown(){HidePanel();materialTimer.Stop();if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}dead=true;dismissTimer.Stop();Close();}
     internal void SaveOffscreenPreview(string file,bool settingsMode,IList<ResultItem> items,string query){
         input.Visibility=settingsMode?Visibility.Collapsed:Visibility.Visible;settingsHeading.Visibility=settingsMode?Visibility.Visible:Visibility.Collapsed;

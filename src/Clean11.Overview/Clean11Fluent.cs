@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -24,7 +24,12 @@ static class Clean11Fluent {
         element.UseLayoutRounding=true;
         element.SnapsToDevicePixels=true;
     }
+    sealed class PaletteStamp {internal string Key;}
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement,PaletteStamp> paletteStamps=new System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement,PaletteStamp>();
     internal static void RefreshPalette(FrameworkElement element){
+        var appearance=OverviewPreferences.Appearance;
+        string paletteKey=FrostedMaterial.Light+"|"+appearance.Strength+"|"+appearance.Glass;
+        var stamp=paletteStamps.GetValue(element,_=>new PaletteStamp());if(stamp.Key==paletteKey)return;
         for(int i=element.Resources.MergedDictionaries.Count-1;i>=0;i--)if(element.Resources.MergedDictionaries[i] is Wpf.Ui.Markup.ThemesDictionary)element.Resources.MergedDictionaries.RemoveAt(i);
         element.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary{Theme=FrostedMaterial.Light?Wpf.Ui.Appearance.ApplicationTheme.Light:Wpf.Ui.Appearance.ApplicationTheme.Dark});
         var dictionary=ActivityTheme.Resources();foreach(object key in dictionary.Keys)element.Resources[key]=dictionary[key];
@@ -37,6 +42,7 @@ static class Clean11Fluent {
         var accent=FrostedMaterial.Light?new SolidColorBrush(Color.FromRgb(20,105,164)):ActivityTheme.Brush("Accent","#60CDFF");
         element.Resources["AccentFillColorDefaultBrush"]=accent;element.Resources["AccentFillColorSecondaryBrush"]=accent;
         element.Resources["TextOnAccentFillColorPrimaryBrush"]=FrostedMaterial.Light?Brushes.White:Brushes.Black;
+        stamp.Key=paletteKey;
     }
     internal static Ui.SymbolIcon Icon(string symbol,double size) {
         Ui.SymbolRegular value;

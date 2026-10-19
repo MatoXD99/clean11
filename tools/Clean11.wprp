@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="Clean11">
+ <Profiles>
+  <EventCollector Id="Clean11Collector" Name="Clean11 timing"><BufferSize Value="64"/><Buffers Value="32"/></EventCollector>
+  <EventProvider Id="Clean11Provider" Name="415FBC52-EA39-4F51-B9D8-C6A4681D7402" Level="5"/>
+  <Profile Id="Clean11.Verbose.File" Name="Clean11" Description="Anonymous application timing markers" LoggingMode="File" DetailLevel="Verbose">
+   <Collectors><EventCollectorId Value="Clean11Collector"><EventProviders><EventProviderId Value="Clean11Provider"/></EventProviders></EventCollectorId></Collectors>
+  </Profile>
+ </Profiles>
+</WindowsPerformanceRecorder>

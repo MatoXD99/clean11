@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using Windows.UI.Composition;
 using Windows.Graphics.Effects;
@@ -15,7 +15,11 @@ public interface IEffectInterop {
     void GetNamedPropertyMapping([MarshalAs(UnmanagedType.LPWStr)]string name,out uint index,out uint mapping);
     void GetPropertyCount(out uint count);
     void GetProperty(uint index,out IntPtr value);
+#if NET
+    void GetSource(uint index,out IntPtr source);
+#else
     void GetSource(uint index,out IGraphicsEffectSource source);
+#endif
     void GetSourceCount(out uint count);
 }
 [ComImport,Guid("629BDBC8-D932-4FF4-96B9-8D96C5C1E858"),InterfaceType(ComInterfaceType.InterfaceIsIInspectable)]
@@ -23,31 +27,63 @@ interface IPropertyFactory {
     void CreateEmpty(out IntPtr value);void CreateUInt8(byte data,out IntPtr value);void CreateInt16(short data,out IntPtr value);void CreateUInt16(ushort data,out IntPtr value);void CreateInt32(int data,out IntPtr value);void CreateUInt32(uint data,out IntPtr value);void CreateInt64(long data,out IntPtr value);void CreateUInt64(ulong data,out IntPtr value);void CreateSingle(float data,out IntPtr value);
 }
 [ComVisible(true),ClassInterface(ClassInterfaceType.None)]
-public sealed class DockGaussian : IGraphicsEffect,IGraphicsEffectSource,IEffectInterop {
+public sealed class DockGaussian : IGraphicsEffect,IGraphicsEffectSource,IEffectInterop
+#if NET
+    ,ICustomQueryInterface
+#endif
+{
+#if NET
+    public CustomQueryInterfaceResult GetInterface(ref Guid iid,out IntPtr pointer){
+        pointer=IntPtr.Zero;
+        if(iid!=typeof(IEffectInterop).GUID)return CustomQueryInterfaceResult.NotHandled;
+        pointer=Marshal.GetComInterfaceForObject(this,typeof(IEffectInterop),CustomQueryInterfaceMode.Ignore);
+        return CustomQueryInterfaceResult.Handled;
+    }
+#endif
     public string Name{get;set;}
     internal IGraphicsEffectSource Source;
     public void GetEffectId(out Guid id){id=new Guid("1FEB6D69-2FE6-4AC9-8C58-1D7F93E7A6A5");}
     public void GetNamedPropertyMapping(string name,out uint index,out uint mapping){if(name!="BlurAmount")throw new ArgumentException();index=0;mapping=1;}
     public void GetPropertyCount(out uint count){count=3;}
     public void GetProperty(uint index,out IntPtr value){
+#if NET
+        object boxed;if(index==0)boxed=PropertyValue.CreateSingle(8);else if(index==1||index==2)boxed=PropertyValue.CreateUInt32(1);else throw new ArgumentOutOfRangeException();
+        IntPtr raw=WinRT.MarshalInspectable<object>.FromManaged(boxed);
+#else
         var factory=(IPropertyFactory)System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeMarshal.GetActivationFactory(typeof(PropertyValue));
         IntPtr raw;if(index==0)factory.CreateSingle(8,out raw);else if(index==1||index==2)factory.CreateUInt32(1,out raw);else throw new ArgumentOutOfRangeException();
+#endif
         try{var id=new Guid("4BD682DD-7554-40E9-9A9B-82654EDE7E62");Marshal.ThrowExceptionForHR(Marshal.QueryInterface(raw,ref id,out value));}finally{Marshal.Release(raw);}
     }
+#if NET
+    public void GetSource(uint index,out IntPtr source){if(index!=0)throw new ArgumentOutOfRangeException();source=WinRT.MarshalInterface<IGraphicsEffectSource>.FromManaged(Source);}
+#else
     public void GetSource(uint index,out IGraphicsEffectSource source){if(index!=0)throw new ArgumentOutOfRangeException();source=Source;}
+#endif
     public void GetSourceCount(out uint count){count=1;}
 }
 sealed class DockComposition : IDisposable {
     [StructLayout(LayoutKind.Sequential)]struct QueueOptions{public int Size,Thread,Apartment;}
     [DllImport("CoreMessaging.dll")]static extern int CreateDispatcherQueueController(QueueOptions options,[MarshalAs(UnmanagedType.IUnknown)]out object controller);
     static object queue;
-    Compositor compositor;IDesktopTarget target;ContainerVisual root;SpriteVisual blur,tint;CompositionEffectBrush effect;CompositionLinearGradientBrush tintBrush;CompositionBackdropBrush sourceBrush;CompositionEffectFactory factory;
+    Compositor compositor;
+#if NET
+    Windows.UI.Composition.Desktop.DesktopWindowTarget target;
+#else
+    IDesktopTarget target;
+#endif
+    ContainerVisual root;SpriteVisual blur,tint;CompositionEffectBrush effect;CompositionLinearGradientBrush tintBrush;CompositionBackdropBrush sourceBrush;CompositionEffectFactory factory;
     internal DockComposition(IntPtr window,bool aboveContent=true){
         if(queue==null){object controller;int hr=CreateDispatcherQueueController(new QueueOptions{Size=12,Thread=2,Apartment=2},out controller);if(hr<0)Marshal.ThrowExceptionForHR(hr);queue=controller;}
         try{
         compositor=new Compositor();IntPtr raw;
+#if NET
+        WinRT.CastExtensions.As<IDesktopCompositor>(compositor).CreateDesktopWindowTarget(window,aboveContent,out raw);
+        try{target=WinRT.MarshalInspectable<Windows.UI.Composition.Desktop.DesktopWindowTarget>.FromAbi(raw);}finally{Marshal.Release(raw);}
+#else
         ((IDesktopCompositor)(object)compositor).CreateDesktopWindowTarget(window,aboveContent,out raw);
         try{target=(IDesktopTarget)Marshal.GetObjectForIUnknown(raw);}finally{Marshal.Release(raw);}
+#endif
         root=compositor.CreateContainerVisual();root.RelativeSizeAdjustment=Vector2.One;target.Root=root;
         factory=compositor.CreateEffectFactory(new DockGaussian{Name="Blur",Source=new CompositionEffectSourceParameter("Backdrop")},new[]{"Blur.BlurAmount"});
         effect=factory.CreateBrush();sourceBrush=compositor.CreateBackdropBrush();effect.SetSourceParameter("Backdrop",sourceBrush);
@@ -55,7 +91,17 @@ sealed class DockComposition : IDisposable {
         tintBrush=compositor.CreateLinearGradientBrush();tintBrush.StartPoint=new Vector2(0,0);tintBrush.EndPoint=new Vector2(.2f,1);tint=compositor.CreateSpriteVisual();tint.RelativeSizeAdjustment=Vector2.One;tint.Brush=tintBrush;root.Children.InsertAtTop(tint);
         }catch{Dispose();throw;}
     }
-    internal void SetVisible(bool visible){root.IsVisible=visible;}
+    internal void SetVisible(bool visible){if(!visible)root.StopAnimation("Opacity");root.IsVisible=visible;}
+    internal void Reveal(int milliseconds){
+        // Submitted once; the compositor advances this effect independently.
+        var animation=compositor.CreateScalarKeyFrameAnimation();
+        var easing=compositor.CreateCubicBezierEasingFunction(new Vector2(.16f,1),new Vector2(.3f,1));
+        animation.InsertKeyFrame(0,0);animation.InsertKeyFrame(1,1,easing);
+        animation.Duration=TimeSpan.FromMilliseconds(Math.Max(120,Math.Min(600,milliseconds)));
+        root.Opacity=1;root.StartAnimation("Opacity",animation);animation.Dispose();easing.Dispose();
+    }
+    internal void FinishReveal(){root.StopAnimation("Opacity");root.Opacity=1;}
+    internal void SetOpacity(float value){root.StopAnimation("Opacity");root.Opacity=Math.Max(0,Math.Min(1,value));}
     float lastWidth=-1,lastHeight=-1,lastRadius=-1;byte lastAlpha;System.Windows.Media.Color lastTone;
     internal void Update(float width,float height,float radius,byte alpha){
         var currentTone=FrostedMaterial.Tone;if(width==lastWidth&&height==lastHeight&&radius==lastRadius&&alpha==lastAlpha&&currentTone==lastTone)return;

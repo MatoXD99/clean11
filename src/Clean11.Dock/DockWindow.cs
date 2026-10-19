@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,7 +23,7 @@ sealed class DockGroup {
 }
 sealed class DockTile {
     internal Ui.Button Button;internal FrameworkElement Icon;internal ScaleTransform Scale;internal TranslateTransform Shift;
-    internal Border Dot;internal DockGroup Group;internal double Center,Target=1,TargetShift;
+    internal bool? DotActive;internal Border Dot;internal DockGroup Group;internal double Center,Target=1,TargetShift;
 }
 sealed class DockWindow : Window {
     internal readonly DockState State;
@@ -132,7 +132,7 @@ sealed class DockWindow : Window {
         bool fullscreenOverride=State.HideInFullscreen&&fullscreen;
         bool shouldShow=!fullscreenOverride&&DateTime.UtcNow>=Lease.NativeTrayUntil&&(menuOpen||inFlyout||(inside&&showing)||edge||State.Visibility=="Always"||(State.Visibility=="Intelligent"&&!overlap));
         HideDock(!shouldShow);if(fullscreenOverride)CloseFlyout();
-        foreach(var tile in tiles)if(tile.Group!=null&&tile.Dot!=null){bool active=tile.Group.Windows.Any(w=>w.Handle==foreground);tile.Dot.Background=ActivityTheme.Brush(active?"Accent":"Muted",active?"#60CDFF":"#B8B8B8");}
+        foreach(var tile in tiles)if(tile.Group!=null&&tile.Dot!=null){bool active=tile.Group.Windows.Any(w=>w.Handle==foreground);if(tile.DotActive==active)continue;tile.DotActive=active;tile.Dot.Background=ActivityTheme.Brush(active?"Accent":"Muted",active?"#60CDFF":"#B8B8B8");}
     }
     void HideDock(bool hidden){if(showing==!hidden)return;showing=!hidden;RefreshGlass();if(hidden){hoverDelay.Stop();StopMotion();BeginAnimation(OpacityProperty,null);Opacity=0;IsHitTestVisible=false;DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()|0x20));}else{DockNative.SetLong(hwnd,-20,new IntPtr(DockNative.GetLong(hwnd,-20).ToInt64()&~0x20));IsHitTestVisible=true;if(State.ReducedMotion)Opacity=1;else BeginAnimation(OpacityProperty,new DoubleAnimation(0,1,TimeSpan.FromMilliseconds(140)){FillBehavior=FillBehavior.Stop},HandoffBehavior.SnapshotAndReplace);Opacity=1;}}
     void Dropped(object sender,DragEventArgs e){if(e.Data.GetDataPresent("Clean11.Pin")){string id=(string)e.Data.GetData("Clean11.Pin");var pin=State.Pins.FirstOrDefault(p=>p.Id==id);if(pin!=null){int target=Math.Max(0,Math.Min(State.Pins.Count-1,(int)((e.GetPosition(strip).X-52)/slot)-1));State.Pins.Remove(pin);State.Pins.Insert(Math.Min(target,State.Pins.Count),pin);}}else if(e.Data.GetDataPresent(DataFormats.FileDrop)){foreach(string path in ((string[])e.Data.GetData(DataFormats.FileDrop)).Take(32))if(!State.Pins.Any(p=>p.Path.Equals(path,StringComparison.OrdinalIgnoreCase)))State.Pins.Add(DockState.FromPath(path));}State.Save();signature="";Rebuild();e.Handled=true;}
@@ -170,6 +170,7 @@ sealed class DockWindow : Window {
     }
     internal void RefreshGlass(){
         if(hwnd==IntPtr.Zero||disposed)return;
+        foreach(var tile in tiles)tile.DotActive=null;
         bool glass=true;int strength=60;try{var preferences=OverviewPreferences.Load();glass=preferences.Glass;strength=preferences.GlassStrength;}catch{}
         glass=FrostedMaterial.Enabled(glass);
         if(glassBackdrop==null)glassBackdrop=new DockBackdrop();

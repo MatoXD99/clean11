@@ -95,6 +95,7 @@ partial class Overview {
     void PlaceSpotlightBadge(WindowItem window,double opacity=1){OverviewBadge badge;if(previewBadges.TryGetValue(window.Hwnd,out badge)&&badge.IsMinimizedCard!=window.Minimized){ReleaseSpotlightBadge(window.Hwnd);}
         if(!previewBadges.TryGetValue(window.Hwnd,out badge)){badge=new OverviewBadge(this,e=>OnMouseMove(e),e=>OnMouseDown(e));previewBadges[window.Hwnd]=badge;}badge.Opacity=opacity;badge.IsHitTestVisible=opacity>=.99;var bounds=window.Preview;bounds.Offset(Left,Top);if(window.Minimized)badge.PlaceMinimized(bounds,WindowAppName(window),window.Title,AppIcon(window.ProcessPath),()=>ChooseWindow(window),()=>RequestWindowClose(window));else badge.Place(bounds,WindowAppName(window),AppIcon(window.ProcessPath),state.Glass,()=>RequestWindowClose(window));}
     void UpdateMotionBadges(double progress){
+        if(closing&&spotlight!=null)spotlight.UpdateOverviewExit(progress);
         foreach(var window in windows){
             OverviewBadge badge;if(!previewBadges.TryGetValue(window.Hwnd,out badge))continue;
             var original=window.Original;original.Offset(-desktop.Left,-desktop.Top);

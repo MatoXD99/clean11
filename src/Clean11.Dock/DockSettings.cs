@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -115,6 +115,7 @@ sealed class DockSettings : Window {
         material=Choice(panel,"Material","Midnight is smoked blue. Pearl is a pale frost.",new[]{"Midnight","Pearl"},prefs.GlassStyle,v=>prefs.GlassStyle=v);
         visibility=Range(panel,"Glass visibility","Reveal more of the background while keeping a gentle tint.",prefs.GlassStrength,0,100,5,"%",v=>prefs.GlassStrength=(int)v);
         blur=Range(panel,"Blur radius","Lower values keep background shapes sharper.",prefs.BlurRadius,0,40,1," px",v=>prefs.BlurRadius=(int)v);
+        Toggle(panel,"Compositor glass animation (experimental)","Animate glass appearance independently of the UI thread. Turn off to use the established renderer.",prefs.CompositionMotion,v=>prefs.CompositionMotion=v);
         material.SelectionChanged+=(s,e)=>UpdateSample();visibility.ValueChanged+=(s,e)=>UpdateSample();blur.ValueChanged+=(s,e)=>UpdateSample();glass.Checked+=(s,e)=>UpdateSample();glass.Unchecked+=(s,e)=>UpdateSample();
         if(!DockBackdrop.AdjustableBlurAvailable){var note=Label("System blur fallback is active. Adjustable radius requires composition support.",12,true);note.Margin=new Thickness(2,8,2,0);panel.Children.Add(note);}return panel;
     }
