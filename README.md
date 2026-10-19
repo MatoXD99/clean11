@@ -8,13 +8,23 @@ A floating dock, a keyboard-first window overview, and a focused search experien
 
 **Windows 11 · C# / WPF · WPF UI · Active prototype**
 
-[Explore the features](#a-calmer-everyday-desktop) · [Build from source](#build-from-source) · [Roadmap](#whats-next) · [Documentation](#documentation)
+**Proudly vibe-coded with OpenAI Codex. Human vision. AI collaboration. Obsessive iteration.**
+
+[Why we vibe-code](#proudly-vibe-coded) · [Explore the features](#a-calmer-everyday-desktop) · [Build from source](#build-from-source) · [Roadmap](#whats-next) · [Documentation](#documentation)
 
 </div>
 
 ![Clean11 desktop illustration: floating search, an organized window overview, and an icon-only dock](docs/images/clean11-desktop.png)
 
 > **About the images:** these are original, illustrative previews with synthetic content, not screenshots of a real desktop. They communicate the design direction; the running prototype can differ. No personal documents, accounts, conversations, wallpaper captures, or third-party reference screenshots are included.
+
+## Proudly vibe-coded
+
+Clean11 is built through hands-on collaboration with **OpenAI Codex**, and we're proud of it. The idea, taste, and direction come from a human; AI helps turn them into working software through code, debugging, design exploration, and iteration.
+
+Our workflow is simple: describe the experience, build it, try it on a real desktop, point out what feels wrong, and keep refining. A dock that feels off, a flickering label, or an awkward animation becomes the next conversation and the next improvement.
+
+For us, vibe-coding makes ambitious personal software possible. Clean11 is an ongoing experiment in how far human creativity and AI collaboration can take a Windows desktop project. The source is here so you can explore it, question the decisions, report bugs, and follow the progress.
 
 ## A calmer everyday desktop
 
