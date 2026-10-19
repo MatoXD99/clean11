@@ -27,7 +27,8 @@ sealed class DockBackdrop : Window {
         // Native-only resizing leaves WPF's compact dimensions stale.
         Width=Math.Max(1,width);Height=Math.Max(1,height);Left=left;Top=top;
         if(!IsVisible)Show();
-        UpdateLayout();
+        // This companion has no WPF content to arrange. Geometry setters update
+        // its HWND; the compositor fills it using relative visual sizes.
         GlassNative.SetWindowPos(handle,icons,0,0,0,0,0x13); // z-order only, no activation
         Background=material.Update(width,height,dpi,glass,strength);
     }
@@ -56,6 +57,8 @@ sealed class DockPopupMaterial : IDisposable {
     }
     
     bool Acrylic;DockComposition composition;bool compositionFailed;
+    bool materialReady,lastGlass;int lastStrength,lastRadius;double lastDpi;
+    Color lastTone;Brush currentBrush;
 
     internal static void PrepareContentHost(IntPtr window){
         HwndSource.FromHwnd(window).CompositionTarget.BackgroundColor=Colors.Transparent;
@@ -64,8 +67,12 @@ sealed class DockPopupMaterial : IDisposable {
     }
     internal DockPopupMaterial(IntPtr window,bool above=false){handle=window;aboveContent=above;HwndSource.FromHwnd(handle).CompositionTarget.BackgroundColor=Colors.Transparent;}
     internal Brush Update(double width,double height,double dpi,bool glass,int strength){
-        int type=1;GlassNative.DwmSetWindowAttribute(handle,38,ref type,4);
         int radius=8;try{radius=OverviewPreferences.Load().BlurRadius;}catch{}
+        var tone=FrostedMaterial.Tone;
+        // Size changes are handled by the relative composition tree. Reapplying
+        // native blur/frame policy on every animation frame stalls composition.
+        if(materialReady&&lastGlass==glass&&lastStrength==strength&&lastRadius==radius&&lastDpi==dpi&&lastTone==tone)return currentBrush;
+        int type=1;GlassNative.DwmSetWindowAttribute(handle,38,ref type,4);
         if(glass&&composition==null&&!compositionFailed){
             try{composition=new DockComposition(handle,aboveContent);DockBackdrop.AdjustableBlurAvailable=true;System.Diagnostics.Trace.WriteLine("Adjustable dock blur initialized.");}
             catch(Exception error){compositionFailed=true;System.Diagnostics.Trace.WriteLine("Adjustable blur unavailable: "+error.ToString());}
@@ -81,7 +88,9 @@ sealed class DockPopupMaterial : IDisposable {
             composition.SetVisible(custom);
             if(custom)composition.Update((float)(width*dpi),(float)(height*dpi),(float)(radius*dpi),tint.A);
         }
-        return custom?Brushes.Transparent:Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
+        currentBrush=custom?Brushes.Transparent:Acrylic?new SolidColorBrush(tint):ActivityTheme.Brush("Surface","#23252A");
+        lastGlass=glass;lastStrength=strength;lastRadius=radius;lastDpi=dpi;lastTone=tone;materialReady=true;
+        return currentBrush;
     }
     public void Dispose(){if(composition!=null)composition.Dispose();}
 }

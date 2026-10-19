@@ -46,9 +46,13 @@ partial class Overview {
     byte previewOpacity=255;
     internal byte SpotlightPreviewOpacity {get{return previewOpacity;}}
     internal void FadeSpotlightPreviews(byte opacity){
+        bool changed=(previewOpacity==0)!=(opacity==0);
         previewOpacity=opacity;if(!Visible||closing)return;
+        // Rounded hosts now switch visibility rather than fading their black
+        // backing. Do not re-submit every unchanged thumbnail on every frame.
+        if(!changed)return;
         foreach(var badge in previewBadges.Values){badge.Opacity=1;if(opacity==0)badge.Hide();else if(!badge.IsVisible)badge.Show();}
-        foreach(var window in windows){RoundedPreview preview;if(roundedPreviews.TryGetValue(window.Hwnd,out preview))preview.Fade(opacity,Handle);else if(window.Thumbnail!=IntPtr.Zero){var properties=new Native.Props{Flags=4|8,Opacity=opacity,Visible=opacity>0};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref properties);}}
+        foreach(var window in windows){RoundedPreview preview;if(roundedPreviews.TryGetValue(window.Hwnd,out preview))preview.Fade(opacity,Handle);else if(window.Thumbnail!=IntPtr.Zero){var properties=new Native.Props{Flags=4|8,Opacity=255,Visible=opacity>0};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref properties);}}
     }
     void HideRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Hide();foreach(var badge in previewBadges.Values)badge.Hide();}
     void ReleaseRoundedPreview(IntPtr window){ReleaseSpotlightBadge(window);RoundedPreview preview;if(roundedPreviews.TryGetValue(window,out preview)){preview.Dispose();roundedPreviews.Remove(window);}}
