@@ -32,7 +32,10 @@ sealed class RoundedPreview : Form {
     }
     internal void Fade(byte opacity,IntPtr behind){
         if(opacity==0){Hide();return;}
-        var properties=new Native.Props{Flags=4|8,Opacity=opacity,Visible=true};Native.DwmUpdateThumbnailProperties(thumbnail,ref properties);
+        // This is a non-layered DWM host: reducing thumbnail opacity exposes
+        // its black backing, rather than the desktop. Keep it intact until
+        // the search transition reaches its visibility boundary.
+        var properties=new Native.Props{Flags=4|8,Opacity=255,Visible=true};Native.DwmUpdateThumbnailProperties(thumbnail,ref properties);
         if(!Visible)Show();SetWindowPos(Handle,behind,0,0,0,0,0x0013);
     }
     protected override void Dispose(bool disposing){if(thumbnail!=IntPtr.Zero){Native.DwmUnregisterThumbnail(thumbnail);thumbnail=IntPtr.Zero;}base.Dispose(disposing);}
@@ -44,7 +47,7 @@ partial class Overview {
     internal byte SpotlightPreviewOpacity {get{return previewOpacity;}}
     internal void FadeSpotlightPreviews(byte opacity){
         previewOpacity=opacity;if(!Visible||closing)return;
-        foreach(var badge in previewBadges.Values){badge.Opacity=opacity/255.0;if(opacity==0)badge.Hide();else if(!badge.IsVisible)badge.Show();}
+        foreach(var badge in previewBadges.Values){badge.Opacity=1;if(opacity==0)badge.Hide();else if(!badge.IsVisible)badge.Show();}
         foreach(var window in windows){RoundedPreview preview;if(roundedPreviews.TryGetValue(window.Hwnd,out preview))preview.Fade(opacity,Handle);else if(window.Thumbnail!=IntPtr.Zero){var properties=new Native.Props{Flags=4|8,Opacity=opacity,Visible=opacity>0};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref properties);}}
     }
     void HideRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Hide();foreach(var badge in previewBadges.Values)badge.Hide();}
@@ -52,14 +55,15 @@ partial class Overview {
     void ReleaseRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Dispose();roundedPreviews.Clear();foreach(var badge in previewBadges.Values)badge.Close();previewBadges.Clear();}
     void UpdateRoundedPreviews(){
         bool show=!diagnostic&&Visible&&!rendering&&!closing&&!settingsOpen&&!browsing&&search.Text.Trim().Length==0;
-        if(!show){HideRoundedPreviews();return;}
+        if(!show){HideRoundedPreviews();if(!rendering&&!closing)foreach(var window in windows)if(window.Thumbnail!=IntPtr.Zero){var hidden=new Native.Props{Flags=8,Visible=false};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref hidden);}return;}
+        previewOpacity=255;
         var ids=new HashSet<IntPtr>(windows.Select(w=>w.Hwnd));foreach(var gone in roundedPreviews.Keys.Where(key=>!ids.Contains(key)).ToArray())ReleaseRoundedPreview(gone);foreach(var gone in previewBadges.Keys.Where(key=>!ids.Contains(key)).ToArray())ReleaseSpotlightBadge(gone);
         IntPtr inputBefore=Native.GetForegroundWindow();
         foreach(var window in windows){
             PlaceSpotlightBadge(window);
             if(window.Thumbnail==IntPtr.Zero)continue;
             RoundedPreview preview;
-            if(!roundedPreviews.TryGetValue(window.Hwnd,out preview)){preview=new RoundedPreview(previewHost,window.Hwnd,e=>OnMouseMove(e),e=>OnMouseDown(e));if(!preview.Ready){preview.Dispose();continue;}roundedPreviews[window.Hwnd]=preview;}
+            if(!roundedPreviews.TryGetValue(window.Hwnd,out preview)){preview=new RoundedPreview(previewHost,window.Hwnd,e=>OnMouseMove(e),e=>OnMouseDown(e));if(!preview.Ready){preview.Dispose();var fallback=new Native.Props{Flags=1|4|8|16,Destination=new Native.Rect(window.Preview),Opacity=255,Visible=true,ClientOnly=false};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref fallback);continue;}roundedPreviews[window.Hwnd]=preview;}
             var bounds=window.Preview;bounds.Offset(Left,Top);preview.Place(bounds,Handle);
             var properties=new Native.Props{Flags=8,Visible=false};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref properties);
         }

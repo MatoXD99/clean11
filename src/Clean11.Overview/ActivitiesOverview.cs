@@ -296,7 +296,7 @@ partial class Overview : Form {
         search.HandleCommand=HandleSearchCommand;
         search.ImeCompositionEnded+=()=>{try{BeginInvoke((Action)(()=>{SyncSpotlightQuery();Redraw();}));}catch{}};
         search.GotFocus+=(s,e)=>Redraw();search.LostFocus+=(s,e)=>{Redraw();if(Visible&&!closing)Native.Log("Search focus lost; foreground="+Native.GetForegroundWindow());};
-        search.TextChanged+=(s,e)=> { if(resultMenuOpen)CloseResultMenu();if(openingMotion) FinishEntrance(false); QueueFolderSearch();QueueSettingsSearch();RebuildResults(); UpdateThumbnails(1);SyncSpotlightQuery(); Redraw(); };
+        search.TextChanged+=(s,e)=> { if(resultMenuOpen)CloseResultMenu();if(openingMotion) FinishEntrance(false); QueueFolderSearch();QueueSettingsSearch();RebuildResults();SyncSpotlightQuery();UpdateThumbnails(1); Redraw(); };
         Controls.Add(search); search.Visible=false;
         searchHint.Text="Search apps, files, folders and windows…";searchHint.ForeColor=ActivityTheme.Muted;
         searchHint.BackColor=search.BackColor;searchHint.AutoSize=false;searchHint.TextAlign=ContentAlignment.MiddleLeft;
@@ -754,7 +754,13 @@ partial class Overview : Form {
             Native.DwmUpdateThumbnailProperties(surface.Thumbnail,ref props);
         }
     }
-    void UpdateThumbnails(double t) {if(SpotlightActive&&spotlight.IsAnimating&&search.Text.Trim().Length>0&&!closing)return;ApplySurfaces(CaptureSurfaces(),t,search.Text.Trim().Length==0&&!browsing&&!settingsOpen);UpdateRoundedPreviews();}
+    void UpdateThumbnails(double t) {
+        // Search owns preview visibility for both expansion and collapse.
+        if(SpotlightActive&&spotlight.IsAnimating&&!closing)return;
+        if(Visible&&!rendering&&!closing&&!diagnostic){UpdateRoundedPreviews();return;}
+        ApplySurfaces(CaptureSurfaces(),t,search.Text.Trim().Length==0&&!browsing&&!settingsOpen);
+        UpdateRoundedPreviews();
+    }
     void FocusSearch() {
         if(shuttingDown||IsDisposed||!Visible||closing||settingsOpen)return;
         IntPtr focused=Native.GetForegroundWindow();
@@ -825,13 +831,16 @@ partial class Overview : Form {
         StopFocusHandoff();if(openingMotion)FinishEntrance(false);
         closing=true;
         HideSpotlight();
-        HideRoundedPreviews();
         StopFocusHandoff();if(openingMotion)FinishEntrance(false);
         afterClose=next;closing=true;rendering=true;search.Visible=false;searchHint.Visible=false;
         Interlocked.Increment(ref closeGeneration);
         // A search result has no large preview to animate back from.
         if(reducedMotion||(search.Text.Trim().Length>0&&exitWindow==null)){CompleteClose();return;}
         ApplySurfaces(CaptureSurfaces(),1,true);
+        // Present the replacement before removing the settled preview hosts.
+        // Otherwise the desktop is exposed for a frame at the start of exit.
+        Native.DwmFlush();
+        HideRoundedPreviews();
         Redraw();Update();
         StartMotion();
     }
