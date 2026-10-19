@@ -48,11 +48,11 @@ sealed class DockComposition : IDisposable {
         compositor=new Compositor();IntPtr raw;
         ((IDesktopCompositor)(object)compositor).CreateDesktopWindowTarget(window,aboveContent,out raw);
         try{target=(IDesktopTarget)Marshal.GetObjectForIUnknown(raw);}finally{Marshal.Release(raw);}
-        root=compositor.CreateContainerVisual();target.Root=root;
+        root=compositor.CreateContainerVisual();root.RelativeSizeAdjustment=Vector2.One;target.Root=root;
         factory=compositor.CreateEffectFactory(new DockGaussian{Name="Blur",Source=new CompositionEffectSourceParameter("Backdrop")},new[]{"Blur.BlurAmount"});
         effect=factory.CreateBrush();sourceBrush=compositor.CreateBackdropBrush();effect.SetSourceParameter("Backdrop",sourceBrush);
-        blur=compositor.CreateSpriteVisual();blur.Brush=effect;root.Children.InsertAtTop(blur);
-        tintBrush=compositor.CreateLinearGradientBrush();tintBrush.StartPoint=new Vector2(0,0);tintBrush.EndPoint=new Vector2(.2f,1);tint=compositor.CreateSpriteVisual();tint.Brush=tintBrush;root.Children.InsertAtTop(tint);
+        blur=compositor.CreateSpriteVisual();blur.RelativeSizeAdjustment=Vector2.One;blur.Brush=effect;root.Children.InsertAtTop(blur);
+        tintBrush=compositor.CreateLinearGradientBrush();tintBrush.StartPoint=new Vector2(0,0);tintBrush.EndPoint=new Vector2(.2f,1);tint=compositor.CreateSpriteVisual();tint.RelativeSizeAdjustment=Vector2.One;tint.Brush=tintBrush;root.Children.InsertAtTop(tint);
         }catch{Dispose();throw;}
     }
     internal void SetVisible(bool visible){root.IsVisible=visible;}
@@ -60,7 +60,8 @@ sealed class DockComposition : IDisposable {
     internal void Update(float width,float height,float radius,byte alpha){
         var currentTone=FrostedMaterial.Tone;if(width==lastWidth&&height==lastHeight&&radius==lastRadius&&alpha==lastAlpha&&currentTone==lastTone)return;
         lastWidth=width;lastHeight=height;lastRadius=radius;lastAlpha=alpha;lastTone=currentTone;
-        root.Size=blur.Size=tint.Size=new Vector2(width,height);
+        // Relative sizing follows the desktop target on the compositor thread.
+        // A delayed compact-layout update must never crop an expanded panel.
         effect.Properties.InsertScalar("Blur.BlurAmount",Math.Max(0,Math.Min(250,radius/3f)));
         var color=FrostedMaterial.Tone;
         tintBrush.ColorStops.Clear();

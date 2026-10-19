@@ -49,7 +49,7 @@ sealed class SpotlightPanel : Window {
     readonly ObservableCollection<SpotlightRow> rows=new ObservableCollection<SpotlightRow>();
     readonly Dictionary<string,ImageSource> icons=new Dictionary<string,ImageSource>(StringComparer.OrdinalIgnoreCase);
     bool animating;
-    readonly Forms.Timer dismissTimer=new Forms.Timer{Interval=120};
+    readonly System.Windows.Threading.DispatcherTimer dismissTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(120)};
     readonly Stopwatch clock=new Stopwatch();
     Rect from,to;Action animationDone;int animationDuration;
     int fadeFrom,fadeTo;bool fadingPreviews;
@@ -117,7 +117,7 @@ sealed class SpotlightPanel : Window {
         list.PreviewMouseLeftButtonUp+=(s,e)=>{var container=ItemsControl.ContainerFromElement(list,e.OriginalSource as DependencyObject) as ListBoxItem;var row=container==null?null:container.DataContext as SpotlightRow;if(row!=null&&pressedRowKey==overview.SpotlightKey(row.Item)){int index=list.ItemContainerGenerator.IndexFromContainer(container);overview.LaunchSpotlight(index);e.Handled=true;}pressedRowKey=null;};
         list.ContextMenu=new ContextMenu();
         list.ContextMenuOpening+=(s,e)=>{e.Handled=true;var element=e.OriginalSource as DependencyObject;var container=ItemsControl.ContainerFromElement(list,element) as ListBoxItem;if(container==null)return;int index=list.ItemContainerGenerator.IndexFromContainer(container);list.SelectedIndex=index;var menu=new ContextMenu{PlacementTarget=container};FrostedMaterial.StyleMenu(menu,overview.SpotlightGlass);foreach(string command in overview.SpotlightCommands(index)){string action=command;var item=new MenuItem{Header=action};item.Click+=(ss,ee)=>overview.InvokeSpotlightCommand(index,action);menu.Items.Add(item);}activeMenu=menu;menu.IsOpen=true;};
-        materialTimer.Tick+=(s,e)=>{if(!IsVisible)return;if(MaterialKey(OverviewPreferences.Load())!=materialKey)ApplyMaterial();else UpdateGlass();};
+        materialTimer.Tick+=(s,e)=>{if(!IsVisible)return;if(MaterialKey(OverviewPreferences.Load())!=materialKey)ApplyMaterial();else UpdateGlass();if(Environment.CommandLine.Contains("--inspect-ui")){string frame=Expanded+"|"+animating+"|"+searchPage.Opacity+"|"+ActualWidth+"x"+ActualHeight;if(frame!=lastFrame){lastFrame=frame;Native.Log("Search visual state: "+frame);}}};
         IsVisibleChanged+=(s,e)=>{if(IsVisible){ApplyMaterial();materialTimer.Start();}else{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Hide();}};
         SourceInitialized+=(s,e)=>{hwnd=new WindowInteropHelper(this).Handle;dpi=Native.GetDpiForWindow(hwnd)/96.0;var source=HwndSource.FromHwnd(hwnd);if(source!=null)source.CompositionTarget.BackgroundColor=Colors.Transparent;ApplyMaterial();};
         Closing+=(s,e)=>{if(!dead){e.Cancel=true;overview.CloseSpotlight();}};
@@ -135,6 +135,7 @@ sealed class SpotlightPanel : Window {
     OverviewPreferences glassPreferences;
     readonly System.Windows.Threading.DispatcherTimer materialTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)};
     string materialKey="";
+    string lastFrame="";
     string MaterialKey(OverviewPreferences p){return p.Glass+"|"+p.GlassStyle+"|"+p.GlassStrength+"|"+p.BlurRadius;}
     void UpdateGlass(){
         if(hwnd==IntPtr.Zero||!IsVisible){if(glassBackdrop!=null)glassBackdrop.Hide();return;}
@@ -192,7 +193,9 @@ sealed class SpotlightPanel : Window {
     }
     internal void ReturnToOverview(Rect origin,bool reduced,Action complete){if(!IsVisible){complete();return;}if(settings){settings=false;input.IsReadOnly=false;synchronizing=true;input.Text="";synchronizing=false;}fadingPreviews=true;fadeFrom=overview.SpotlightPreviewOpacity;fadeTo=255;overview.FadeSpotlightPreviews((byte)fadeFrom);MoveTo(origin,Current(),reduced,()=>{Expanded=false;ShowOverview(origin);complete();});}
     Rect Current(){Native.Rect bounds;if(hwnd!=IntPtr.Zero&&Native.GetWindowRect(hwnd,out bounds))return bounds.Box;return new Rect((int)Math.Round(Left*dpi),(int)Math.Round(Top*dpi),Math.Max(1,(int)Math.Round(ActualWidth*dpi)),Math.Max(1,(int)Math.Round(ActualHeight*dpi)));}
-    void StopAnimation(){if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;}
+    readonly System.Windows.Threading.DispatcherTimer animationCompletion=new System.Windows.Threading.DispatcherTimer();
+    void FinishAnimation(object sender,EventArgs e){if(animating)Animate();}
+    void StopAnimation(){animationCompletion.Stop();animationCompletion.Tick-=FinishAnimation;if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;}
     void RenderAnimation(object sender,EventArgs e){var frame=e as RenderingEventArgs;if(frame!=null){if(frame.RenderingTime==lastRender)return;lastRender=frame.RenderingTime;}Animate();}
     void BodyOpacity(double value){searchPage.Opacity=value;settingsPage.Opacity=value;settingsFooter.Opacity=value;}
     void MoveTo(Rect target,Rect start,bool reduced,Action done){StopAnimation();from=start;to=target;animationDone=done;animationDuration=Math.Max(120,Math.Min(600,overview.SpotlightMotion));clock.Restart();
@@ -201,15 +204,19 @@ sealed class SpotlightPanel : Window {
         bodyFrom=!settings&&searchPage.Visibility!=Visibility.Visible?0:Math.Min(start.Height<=180*dpi?0:1,settings?settingsPage.Opacity:searchPage.Opacity);bodyTo=done!=null?0:1;
         if(bodyTo>0){searchPage.Width=Math.Max(1,target.Width/dpi-2);searchPage.Height=Math.Max(1,target.Height/dpi-66);searchPage.HorizontalAlignment=HorizontalAlignment.Left;searchPage.VerticalAlignment=VerticalAlignment.Top;}
         if(reduced){Position(to);BodyOpacity(1);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeTo);fadingPreviews=false;var action=animationDone;animationDone=null;if(action!=null)action();}
-        else{if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeFrom);BodyOpacity(bodyFrom);Position(from);animating=true;CompositionTarget.Rendering+=RenderAnimation;}}
-    void Animate(){double t=Math.Min(1,clock.Elapsed.TotalMilliseconds/animationDuration);double eased=t*t*t*(t*(t*6-15)+10);Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),(int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));double reveal=bodyTo>bodyFrom?Math.Max(0,Math.Min(1,(t-.18)/.66)):Math.Min(1,t/.55);reveal=reveal*reveal*(3-2*reveal);BodyOpacity(bodyFrom+(bodyTo-bodyFrom)*reveal);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)Math.Round(fadeFrom+(fadeTo-fadeFrom)*eased));if(t>=1){StopAnimation();BodyOpacity(1);fadingPreviews=false;var done=animationDone;animationDone=null;if(done!=null)done();}}
+        else{if(fadingPreviews)overview.FadeSpotlightPreviews((byte)fadeFrom);BodyOpacity(bodyFrom);Position(from);animating=true;CompositionTarget.Rendering+=RenderAnimation;
+            // Rendering callbacks can pause when the mixed WinForms/WPF scene
+            // stops producing frames. Always settle geometry and opacity.
+            animationCompletion.Interval=TimeSpan.FromMilliseconds(animationDuration+16);animationCompletion.Tick+=FinishAnimation;animationCompletion.Start();}}
+    bool advancingFrame;
+    void Animate(){if(advancingFrame||!animating)return;advancingFrame=true;try{double t=Math.Min(1,clock.Elapsed.TotalMilliseconds/animationDuration);double eased=t*t*t*(t*(t*6-15)+10);Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),(int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));double reveal=bodyTo>bodyFrom?Math.Max(0,Math.Min(1,(t-.18)/.66)):Math.Min(1,t/.55);reveal=reveal*reveal*(3-2*reveal);BodyOpacity(bodyFrom+(bodyTo-bodyFrom)*reveal);if(fadingPreviews)overview.FadeSpotlightPreviews((byte)Math.Round(fadeFrom+(fadeTo-fadeFrom)*eased));if(t>=1){StopAnimation();BodyOpacity(1);fadingPreviews=false;var done=animationDone;animationDone=null;if(done!=null)done();}}finally{advancingFrame=false;}}
     void Position(Rect bounds){
         if(hwnd!=IntPtr.Zero)dpi=Math.Max(96,Native.GetDpiForWindow(hwnd))/96.0;
         Left=bounds.X/dpi;Top=bounds.Y/dpi;Width=bounds.Width/dpi;Height=bounds.Height/dpi;
         UpdateLayout();UpdateGlass();
     }
     internal void HidePanel(){StopAnimation();dismissTimer.Stop();animationDone=null;fadingPreviews=false;Expanded=false;previewGeneration++;if(activeMenu!=null)activeMenu.IsOpen=false;if(IsVisible)Hide();}
-    internal void Shutdown(){HidePanel();materialTimer.Stop();if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}dead=true;dismissTimer.Dispose();Close();}
+    internal void Shutdown(){HidePanel();materialTimer.Stop();if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}dead=true;dismissTimer.Stop();Close();}
     internal void SaveOffscreenPreview(string file,bool settingsMode,IList<ResultItem> items,string query){
         input.Visibility=settingsMode?Visibility.Collapsed:Visibility.Visible;settingsHeading.Visibility=settingsMode?Visibility.Visible:Visibility.Collapsed;
         // The complete material is now part of the WPF visual, so this hidden

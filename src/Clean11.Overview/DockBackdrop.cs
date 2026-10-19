@@ -23,8 +23,12 @@ sealed class DockBackdrop : Window {
     }
     internal void Update(IntPtr icons,double left,double top,double width,double height,double dpi,bool visible,bool glass,int strength){
         if(!visible){Hide();return;}
-        if(!IsVisible){Width=Math.Max(1,width);Height=Math.Max(1,height);Left=left;Top=top;Show();}
-        GlassNative.SetWindowPos(handle,icons,(int)Math.Round(left*dpi),(int)Math.Round(top*dpi),(int)Math.Round(width*dpi),(int)Math.Round(height*dpi),0x10);
+        // WPF owns geometry for the lifetime of this HWND, including reuse.
+        // Native-only resizing leaves WPF's compact dimensions stale.
+        Width=Math.Max(1,width);Height=Math.Max(1,height);Left=left;Top=top;
+        if(!IsVisible)Show();
+        UpdateLayout();
+        GlassNative.SetWindowPos(handle,icons,0,0,0,0,0x13); // z-order only, no activation
         Background=material.Update(width,height,dpi,glass,strength);
     }
 }

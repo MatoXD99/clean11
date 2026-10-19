@@ -34,6 +34,7 @@ sealed class OverviewBadge : Window {
         if(!IsVisible)Show();UpdateLayout();if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(new WindowInteropHelper(this).Owner);}var prefs=OverviewPreferences.Load();
         glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(glass),prefs.GlassStrength);
     }
+    internal void SetHighlighted(bool highlighted){surface.BorderBrush=highlighted?ActivityTheme.Brush("Accent","#7BC7EF"):FrostedMaterial.Edge();}
     void RefreshGlass(){if(!IsVisible||glassBackdrop==null)return;var prefs=OverviewPreferences.Load();name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);}
 }
 

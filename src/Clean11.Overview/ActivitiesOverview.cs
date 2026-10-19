@@ -1388,7 +1388,10 @@ partial class Overview : Form {
                 if(!openingMotion&&!closing) {
                     DrawWindowHeader(g,w);
                     bool highlighted=i==selected||i==hover||i==hoverClose;
-                    if(highlighted||w.Active){var outline=w.Preview;outline.Inflate(U(3),U(3));StrokeRounded(g,outline,U(ActivityTheme.PreviewRadius+3),highlighted?ActivityTheme.Accent:ActivityTheme.Border,Math.Max(1.5f,scale));}
+                    // Antialiased strokes on a colour-keyed window leave an
+                    // opaque fringe. Native previews own their corner edges;
+                    // selection is displayed on the separate alpha label.
+                    OverviewBadge badge;if(previewBadges.TryGetValue(w.Hwnd,out badge))badge.SetHighlighted(highlighted);
 
                     if(highlighted||w.ClosePending)DrawWindowClose(g,w.Card,w);
                 }
