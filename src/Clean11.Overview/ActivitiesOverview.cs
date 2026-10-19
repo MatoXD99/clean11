@@ -255,6 +255,8 @@ partial class Overview : Form {
     Thread motionThread;
     CancellationTokenSource motionCancellation;
     int motionEpoch;
+    readonly object motionFrameGate=new object();
+    double motionProgress;
     readonly List<WindowItem> windows=new List<WindowItem>();
     List<AppItem> apps=new List<AppItem>();
     List<ResultItem> results=new List<ResultItem>();
@@ -341,7 +343,7 @@ partial class Overview : Form {
     internal bool TransitionActive {get{return rendering;}}
     internal int CloseSequence {get{return Volatile.Read(ref closeGeneration);}}
     internal static bool IsToggleSignalCurrent(bool transitionAtReceipt,int receivedCloseSequence,bool transitionAtDispatch,int currentCloseSequence) {
-        return !transitionAtReceipt&&!transitionAtDispatch&&receivedCloseSequence==currentCloseSequence;
+        return receivedCloseSequence==currentCloseSequence;
     }
     void Redraw() {SyncSpotlightResults();if(SpotlightActive){if(!spotlightChromeCleared){spotlightChromeCleared=true;chromeDirty=true;if(!MotionActive)Invalidate();}return;}spotlightChromeCleared=false;chromeDirty=true;if(!MotionActive)Invalidate();}
     bool TryPaintSearchHover(int previous) {
@@ -519,7 +521,7 @@ partial class Overview : Form {
         SaveState();reducedMotion=state.ReducedMotion||!SystemInformation.UIEffectsEnabled;LayoutCards();UpdateThumbnails(1);Redraw();return true;
     }
     void StopMotion() {
-        Interlocked.Increment(ref motionEpoch);
+        lock(motionFrameGate)Interlocked.Increment(ref motionEpoch);
         var cancellation=motionCancellation;motionCancellation=null;
         var worker=motionThread;motionThread=null;
         if(cancellation!=null){try{cancellation.Cancel();}catch(ObjectDisposedException){}if(worker==null)cancellation.Dispose();}
@@ -530,14 +532,16 @@ partial class Overview : Form {
     }
     // WindowScatter's ease-out starts moving immediately and settles softly.
     internal static double MotionCurve(double progress) {double p=Math.Max(0,Math.Min(1,progress));return 1-Math.Pow(1-p,3);}
-    void StartMotion() {
+    void StartMotion(double resume=-1) {
         StopMotion();
         motionPaintMs=0;motionPaintCoalesces=0;
         var cancellation=new CancellationTokenSource();motionCancellation=cancellation;
         var token=cancellation.Token;int epoch=Volatile.Read(ref motionEpoch);
         var surfaces=CaptureSurfaces();bool reverse=closing;IntPtr renderHost=previewHost.Handle;
-        double duration=MotionMilliseconds(state.MotionDuration,reverse);
-        UpdateMotionBadges(reverse?1:0);
+        double start=resume>=0?resume:(reverse?1:0);
+        lock(motionFrameGate)motionProgress=start;
+        double duration=Math.Max(1,MotionMilliseconds(state.MotionDuration,reverse)*(reverse?start:1-start));
+        UpdateMotionBadges(MotionCurve(start));
         int badgeFramePending=0;
         motionThread=new Thread(()=> {
             Native.CompositionTiming compositionBefore;bool hasComposition=Native.ReadCompositionTiming(out compositionBefore);
@@ -552,8 +556,13 @@ partial class Overview : Form {
                     double raw=Math.Min(1,now/duration);
                     // The exit follows the entrance path backward in time. Using
                     // 1-ease(raw) instead makes the reverse motion stall, then snap.
-                    double eased=MotionCurve(reverse?1-raw:raw);
-                    long updateStart=Stopwatch.GetTimestamp();ApplySurfaces(surfaces,eased,true);
+                    double progress=reverse?start*(1-raw):start+(1-start)*raw;
+                    double eased=MotionCurve(progress);
+                    long updateStart=Stopwatch.GetTimestamp();
+                    lock(motionFrameGate){
+                        if(token.IsCancellationRequested||epoch!=Volatile.Read(ref motionEpoch))return;
+                        ApplySurfaces(surfaces,eased,true);motionProgress=progress;
+                    }
                     updates+=(Stopwatch.GetTimestamp()-updateStart)*1000.0/Stopwatch.Frequency;count++;
                     if(Interlocked.CompareExchange(ref badgeFramePending,1,0)==0){
                         double badgeProgress=eased;
@@ -638,7 +647,7 @@ partial class Overview : Form {
     }
     public void Toggle() {
         Native.Log("Toggle received: visible="+Visible+", opening="+openingMotion+", closing="+closing+", rendering="+rendering);
-        if(rendering){Native.Log("Toggle ignored while overview transition is active");return;}
+        if(rendering){if(openingMotion&&!closing)EndOverview(null);return;}
         if(Visible)EndOverview(null); else BeginOverview();
     }
     void ReadWindows() {
@@ -702,6 +711,7 @@ partial class Overview : Form {
             phase.Restart();LayoutCards();RebuildResults();UpdateThumbnails(0);double layoutMs=phase.Elapsed.TotalMilliseconds;
             phase.Restart();EnsurePaintCache();using(var surface=Graphics.FromImage(chromeCache))PaintChrome(surface);chromeDirty=false;double chromeCacheMs=phase.Elapsed.TotalMilliseconds;
             // Build captions before either the search or native window motion starts.
+            var liveIds=new HashSet<IntPtr>(windows.Select(w=>w.Hwnd));foreach(var gone in previewBadges.Keys.Where(key=>!liveIds.Contains(key)).ToArray())ReleaseSpotlightBadge(gone);
             foreach(var window in windows){PlaceSpotlightBadge(window,0);}
             UpdateMotionBadges(0);
             previewHost.Show();Show();Activate();bool foreground=Native.SetForegroundWindow(Handle);FocusSearch();Update();
@@ -850,21 +860,21 @@ partial class Overview : Form {
     void EndOverview(Action next) {
         if(closing){if(next!=null)afterClose+=next;return;}
         if(!Visible){HideSpotlight();if(next!=null)next();return;}
-        StopFocusHandoff();if(openingMotion)FinishEntrance(false);
-        closing=true;
-        HideSpotlight();
-        StopFocusHandoff();if(openingMotion)FinishEntrance(false);
+        StopFocusHandoff();bool interrupted=openingMotion;
+        double resume=1;
+        if(interrupted){StopMotion();lock(motionFrameGate)resume=motionProgress;openingMotion=false;Native.Log("Overview entrance reversed at progress="+resume.ToString("F3",System.Globalization.CultureInfo.InvariantCulture));}
+        closing=true;HideSpotlight();
         afterClose=next;closing=true;rendering=true;search.Visible=false;searchHint.Visible=false;
         Interlocked.Increment(ref closeGeneration);
         // A search result has no large preview to animate back from.
         if(reducedMotion||(search.Text.Trim().Length>0&&exitWindow==null)){CompleteClose();return;}
-        ApplySurfaces(CaptureSurfaces(),1,true);
+        if(!interrupted)ApplySurfaces(CaptureSurfaces(),1,true);
         // Present the replacement before removing the settled preview hosts.
         // Otherwise the desktop is exposed for a frame at the start of exit.
-        Native.DwmFlush();
+        if(!interrupted)Native.DwmFlush();
         HideRoundedPreviews();
         Redraw();Update();
-        StartMotion();
+        StartMotion(resume);
     }
     void CompleteClose() {
         int generation=Volatile.Read(ref closeGeneration);
@@ -1453,7 +1463,7 @@ partial class Overview : Form {
             shuttingDown=true;folderGeneration++;folderReplyId=0;
             StopFocusHandoff();foreach(var timer in new[]{windowWatcher,folderDelay,folderTimeout,appRefreshDelay,focusSettleTimer}){timer.Stop();timer.Dispose();}
             foreach(var watcher in appWatchers)watcher.Dispose();appWatchers.Clear();
-            DisposeSpotlight();StopMotion();ReleaseThumbnails();
+            DisposeSpotlight();StopMotion();ReleaseThumbnails();foreach(var badge in previewBadges.Values)badge.Close();previewBadges.Clear();
             Owner=null;previewHost.Dispose();
             if(chromeCache!=null){chromeCache.Dispose();chromeCache=null;}
             if(backgroundCache!=null){backgroundCache.Dispose();backgroundCache=null;}
@@ -1512,7 +1522,7 @@ static class Program {
             Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
             var form=new Overview();IntPtr handle=form.Handle;
             using(var superKey=new SuperKeyDispatcher(handle)) {
-            var server=new Thread(()=> {while(true)try {using(var pipe=new NamedPipeServerStream(pipeName,PipeDirection.In,1)){pipe.WaitForConnection();int action=pipe.ReadByte();bool transition=action==1&&form.TransitionActive;int closeSequence=form.CloseSequence;Native.Log("Pipe action received="+action+", transition-at-receipt="+transition+", close-sequence="+closeSequence);if(action==1){if(transition)Native.Log("Queued Super toggle discarded because it arrived during a transition");else form.BeginInvoke((Action)(()=>{bool current=Overview.IsToggleSignalCurrent(transition,closeSequence,form.TransitionActive,form.CloseSequence);if(!current){Native.Log("Queued Super toggle discarded because the overview state changed before dispatch");return;}form.Toggle();}));}else if(action==2)form.BeginInvoke((Action)form.Abort);else if(action==3)form.BeginInvoke((Action)(()=>{form.Abort();Application.ExitThread();}));}}catch{Thread.Sleep(200);}});
+            var server=new Thread(()=> {while(true)try {using(var pipe=new NamedPipeServerStream(pipeName,PipeDirection.In,1)){pipe.WaitForConnection();int action=pipe.ReadByte();bool transition=action==1&&form.TransitionActive;int closeSequence=form.CloseSequence;Native.Log("Pipe action received="+action+", transition-at-receipt="+transition+", close-sequence="+closeSequence);if(action==1){form.BeginInvoke((Action)(()=>{bool current=Overview.IsToggleSignalCurrent(transition,closeSequence,form.TransitionActive,form.CloseSequence);if(!current){Native.Log("Queued Super toggle discarded because the overview state changed before dispatch");return;}form.Toggle();}));}else if(action==2)form.BeginInvoke((Action)form.Abort);else if(action==3)form.BeginInvoke((Action)(()=>{form.Abort();Application.ExitThread();}));}}catch{Thread.Sleep(200);}});
             server.IsBackground=true;server.Start();
             Application.ThreadException+=(s,e)=> {Native.Log("UI error: "+e.Exception);form.Abort();};
             if(background)form.BeginInvoke((Action)form.WarmBackground);else form.BeginInvoke((Action)form.Toggle);

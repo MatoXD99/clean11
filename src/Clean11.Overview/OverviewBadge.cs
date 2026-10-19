@@ -13,7 +13,9 @@ using Drawing=System.Drawing;
 // sized WPF bitmap. These windows cannot activate or take search focus.
 sealed class OverviewBadge : Window {
     readonly TextBlock name;readonly Image icon;readonly Border surface,tint;
+    internal bool IsMinimizedCard {get{return minimizedCard;}}
     bool minimizedCard;Action restoreCard,closeCard;TextBlock subtitle,minimizedLabel;Wpf.Ui.Controls.Button closeButton;
+    OverviewPreferences cachedGlassPreferences;
     DockBackdrop glassBackdrop;readonly System.Windows.Threading.DispatcherTimer materialTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)};IntPtr hwnd;double dpi=1;
     [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")]static extern IntPtr SetWindowLongPtr(IntPtr window,int index,IntPtr value);
     internal OverviewBadge(Overview owner,Action<Forms.MouseEventArgs> move,Action<Forms.MouseEventArgs> down){
@@ -38,7 +40,7 @@ sealed class OverviewBadge : Window {
         name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");surface.BorderBrush=new SolidColorBrush(Color.FromArgb(35,255,255,255));
         // A lightweight translucent caption can fade without a second native glass HWND.
         var tone=FrostedMaterial.Tone;tone.A=205;surface.Background=new SolidColorBrush(tone);tint.Background=Brushes.Transparent;
-        if(!IsVisible)Show();
+        if(!IsVisible&&Opacity>0)Show();
     }
     internal void MoveWithPreview(Drawing.Rectangle bounds){
         if(minimizedCard){Left=bounds.Left/dpi;Top=bounds.Top/dpi;return;}
@@ -47,7 +49,7 @@ sealed class OverviewBadge : Window {
     internal void SetVisibilityProgress(double progress){
         Opacity=Math.Max(0,Math.Min(1,progress));IsHitTestVisible=progress>=.99;
         if(progress<=0){Hide();return;}if(!IsVisible)Show();
-        if(glassBackdrop!=null){glassBackdrop.Opacity=Opacity;RefreshGlass();}
+        if(glassBackdrop!=null){glassBackdrop.Opacity=Opacity;if(cachedGlassPreferences!=null)glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(cachedGlassPreferences.Glass),cachedGlassPreferences.GlassStrength);}
     }
 
     internal void PlaceMinimized(Drawing.Rectangle bounds,string app,string title,Drawing.Icon image,Action restore,Action close){
@@ -81,16 +83,17 @@ sealed class OverviewBadge : Window {
         surface.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));surface.BorderBrush=FrostedMaterial.Edge();
         subtitle.Visibility=Height<90?Visibility.Collapsed:Visibility.Visible;
         name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");subtitle.Foreground=minimizedLabel.Foreground=ActivityTheme.Brush("Muted","#AABBCC");
-        if(!IsVisible)Show();UpdateLayout();if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(new WindowInteropHelper(this).Owner);}RefreshGlass();
+        if(!IsVisible&&Opacity>0)Show();UpdateLayout();if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(new WindowInteropHelper(this).Owner);}RefreshGlass();
     }
     internal void SetHighlighted(bool highlighted){surface.BorderBrush=highlighted?new SolidColorBrush(Color.FromArgb(95,140,190,220)):new SolidColorBrush(Color.FromArgb(35,255,255,255));}
-    void RefreshGlass(){if(!IsVisible||glassBackdrop==null)return;var prefs=OverviewPreferences.Load();name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");if(minimizedCard)subtitle.Foreground=minimizedLabel.Foreground=ActivityTheme.Brush("Muted","#AABBCC");glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);}
+    void RefreshGlass(){if(!IsVisible||glassBackdrop==null)return;var prefs=OverviewPreferences.Load();cachedGlassPreferences=prefs;name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");if(minimizedCard)subtitle.Foreground=minimizedLabel.Foreground=ActivityTheme.Brush("Muted","#AABBCC");glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);}
 }
 
 partial class Overview {
     readonly System.Collections.Generic.Dictionary<IntPtr,OverviewBadge> previewBadges=new System.Collections.Generic.Dictionary<IntPtr,OverviewBadge>();
     bool HasSpotlightBadge(WindowItem window){OverviewBadge badge;return previewBadges.TryGetValue(window.Hwnd,out badge)&&badge.IsVisible;}
-    void PlaceSpotlightBadge(WindowItem window,double opacity=1){OverviewBadge badge;if(!previewBadges.TryGetValue(window.Hwnd,out badge)){badge=new OverviewBadge(this,e=>OnMouseMove(e),e=>OnMouseDown(e));previewBadges[window.Hwnd]=badge;}badge.Opacity=opacity;badge.IsHitTestVisible=opacity>=.99;var bounds=window.Preview;bounds.Offset(Left,Top);if(window.Minimized)badge.PlaceMinimized(bounds,WindowAppName(window),window.Title,AppIcon(window.ProcessPath),()=>ChooseWindow(window),()=>RequestWindowClose(window));else badge.Place(bounds,WindowAppName(window),AppIcon(window.ProcessPath),state.Glass,()=>RequestWindowClose(window));}
+    void PlaceSpotlightBadge(WindowItem window,double opacity=1){OverviewBadge badge;if(previewBadges.TryGetValue(window.Hwnd,out badge)&&badge.IsMinimizedCard!=window.Minimized){ReleaseSpotlightBadge(window.Hwnd);}
+        if(!previewBadges.TryGetValue(window.Hwnd,out badge)){badge=new OverviewBadge(this,e=>OnMouseMove(e),e=>OnMouseDown(e));previewBadges[window.Hwnd]=badge;}badge.Opacity=opacity;badge.IsHitTestVisible=opacity>=.99;var bounds=window.Preview;bounds.Offset(Left,Top);if(window.Minimized)badge.PlaceMinimized(bounds,WindowAppName(window),window.Title,AppIcon(window.ProcessPath),()=>ChooseWindow(window),()=>RequestWindowClose(window));else badge.Place(bounds,WindowAppName(window),AppIcon(window.ProcessPath),state.Glass,()=>RequestWindowClose(window));}
     void UpdateMotionBadges(double progress){
         foreach(var window in windows){
             OverviewBadge badge;if(!previewBadges.TryGetValue(window.Hwnd,out badge))continue;

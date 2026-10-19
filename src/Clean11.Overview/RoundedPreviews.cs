@@ -79,7 +79,7 @@ partial class Overview {
 
     void HideRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Hide();foreach(var badge in previewBadges.Values)badge.Hide();}
     void ReleaseRoundedPreview(IntPtr window){ReleaseSpotlightBadge(window);RoundedPreview preview;if(roundedPreviews.TryGetValue(window,out preview)){preview.Dispose();roundedPreviews.Remove(window);}}
-    void ReleaseRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Dispose();roundedPreviews.Clear();foreach(var badge in previewBadges.Values)badge.Close();previewBadges.Clear();}
+    void ReleaseRoundedPreviews(){foreach(var preview in roundedPreviews.Values)preview.Dispose();roundedPreviews.Clear();foreach(var badge in previewBadges.Values)badge.Hide();}
     void UpdateRoundedPreviews(){
         bool show=!diagnostic&&Visible&&!rendering&&!closing&&!settingsOpen&&!browsing&&search.Text.Trim().Length==0;
         if(!show){HideRoundedPreviews();if(!rendering&&!closing)foreach(var window in windows)if(window.Thumbnail!=IntPtr.Zero){var hidden=new Native.Props{Flags=8,Visible=false};Native.DwmUpdateThumbnailProperties(window.Thumbnail,ref hidden);}return;}
