@@ -82,6 +82,7 @@ static class DesktopActions {
         return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),@"Microsoft\WindowsApps\slu.exe");
     }
     internal static void PowerMenu(){
-        try{Process.Start(new ProcessStartInfo(SeelenCliPath(),"widget trigger @seelen/power-menu"){UseShellExecute=false,CreateNoWindow=true});}catch(Exception error){Native.Log("Power menu: "+error.GetType().Name);}
+        try{string cli=SeelenCliPath();if(System.IO.File.Exists(cli)){Process.Start(new ProcessStartInfo(cli,"widget trigger @seelen/power-menu"){UseShellExecute=false,CreateNoWindow=true});return;}}catch(Exception error){Native.Log("Power menu: "+error.GetType().Name);}
+        Process.Start(new ProcessStartInfo("explorer.exe","ms-settings:powersleep"){UseShellExecute=true});
     }
 }

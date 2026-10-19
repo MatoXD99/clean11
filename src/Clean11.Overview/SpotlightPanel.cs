@@ -363,7 +363,7 @@ sealed class SpotlightPanel : Window {
         panel.Children.Add(SettingsButton("Third-party licenses",()=>ShowLicenses()));
     }
     void ShowLicenses(){
-        string folder=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"licenses");
+        string folder=Clean11Paths.Licenses;
         string text="WPF UI 4.3.0 — Leszek Pomianowski and WPF UI Contributors\nMIT License\nhttps://github.com/lepoco/wpfui\n\n";
         try{foreach(var file in Directory.GetFiles(folder,"*.txt"))text+=Path.GetFileName(file)+"\n"+File.ReadAllText(file)+"\n\n";}catch{}
         var window=new Window{Title="Clean11 · Third-party licenses",Width=680,Height=540,WindowStartupLocation=WindowStartupLocation.CenterOwner,Owner=this,ShowInTaskbar=false,Background=(Brush)FindResource("Surface"),Foreground=TextBrush,FontFamily=FontFamily};

@@ -1,7 +1,8 @@
-﻿$ErrorActionPreference = 'Stop'
+param([ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version='0.1.0')
+$ErrorActionPreference = 'Stop'
 $compiler = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $framework = Split-Path $compiler
-$sources = @('ActivitiesOverview.cs','OverviewPreferences.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PerformanceEvents.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs','DockBackdrop.cs','DockComposition.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
+$sources = @('ActivitiesOverview.cs','Clean11Paths.cs','OverviewPreferences.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PerformanceEvents.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs','DockBackdrop.cs','DockComposition.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
 $libraries = @(
  'WPF-UI.4.3.0/lib/net472/Wpf.Ui.dll',
  'WPF-UI.Abstractions.4.3.0/lib/net472/Wpf.Ui.Abstractions.dll',
@@ -19,5 +20,8 @@ $references += '/r:'+(Join-Path $framework 'System.Runtime.WindowsRuntime.dll')
 $references += '/r:System.Numerics.dll','/r:System.Runtime.dll','/r:System.Runtime.InteropServices.WindowsRuntime.dll'
 $references += '/r:'+(Join-Path $PSScriptRoot 'System.Numerics.Vectors.dll')
 foreach($metadata in @('Windows.Foundation','Windows.UI','Windows.Graphics')){$references += '/r:'+(Join-Path ([Environment]::GetFolderPath('Windows')) "System32/WinMetadata/$metadata.winmd")}
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:Program "/out:$PSScriptRoot/ActivitiesOverview.exe" @references @sources
+$versionDirectory=Join-Path $PSScriptRoot 'bin';New-Item -ItemType Directory -Force $versionDirectory | Out-Null
+$versionSource=Join-Path $versionDirectory 'AssemblyVersion.cs'
+[IO.File]::WriteAllText($versionSource,('[assembly:System.Reflection.AssemblyVersion("{0}.0")][assembly:System.Reflection.AssemblyFileVersion("{0}.0")][assembly:System.Reflection.AssemblyCompany("Clean11 Contributors")][assembly:System.Reflection.AssemblyProduct("Clean11")]' -f $Version))
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:Program "/out:$PSScriptRoot/ActivitiesOverview.exe" @references @sources $versionSource
 if($LASTEXITCODE -ne 0){throw 'Clean11 WPF UI build failed'}

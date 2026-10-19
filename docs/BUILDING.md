@@ -17,7 +17,7 @@ The companion DLLs must travel with the executable. Also copy the repository's `
 
 The optional Everything SDK DLL is deliberately omitted. Basic app/window/settings search does not require it. Existing deployments retain their installed file-search component; public redistribution requires a separate review.
 
-This prototype still calls the existing external power-menu integration. The dock and unified Settings now have their own build under `src/Clean11.Dock`; see [Dock](DOCK.md). A standalone Clean11 power menu, Top Bar, Desktop, full-suite installer, and release recovery validation remain roadmap work.
+The dock and unified Settings have their own build under `src/Clean11.Dock`; see [Dock](DOCK.md). A unified launcher and preview MSI package the implemented modules. Optional power-menu integration falls back to Windows power settings when its compatibility host is absent. Top Bar, Desktop, a standalone power menu, and release recovery validation remain roadmap work.
 
 ## Performance implementation
 
@@ -42,3 +42,42 @@ For presentation analysis, run `tools/Record-Performance.ps1 Start` from a termi
 `src/Clean11.Modern/Build.ps1 -Dotnet <dotnet-executable>` builds Overview, Dock, and the Settings launcher using .NET 10 and WPF UI 4.3.0. Build outputs are separated per project. The candidate preserves field-based settings JSON and supplies the updated Windows Runtime interop needed by adjustable blur. The Settings launcher must be packaged beside the dock executable; build output directories alone are not an installer.
 
 The installed app continues to use the established .NET Framework build. Promoting the modern candidate requires startup, installer/upgrade, multi-monitor DPI, graphics-device recovery, and full visual parity checks. A full Composition preview renderer is also a future stage, beyond the optional glass prototype. No process-priority escalation, new search provider, or native-language rewrite is included without trace evidence that it would help.
+
+## Installer and Windows Sandbox
+
+`installer/Build.ps1 -Version 0.1.0` builds the current .NET Framework application and a per-user x64 MSI using Windows Installer's native database API, `makecab.exe`, and the Windows C# compiler. No third-party installer authoring tool is required. Dependency restore needs internet access on the build machine. End users do not need a compiler, NuGet, or the .NET 10 SDK.
+
+The MSI requires Windows 11 and .NET Framework 4.8 or later, installs beneath the current user's `LocalAppData/Programs/Clean11`, and includes only an explicit set of binaries, theme configuration, and license notices. Logs, personal settings, keys, and development files are excluded. `Clean11.exe` starts both modules; sign-in startup uses this same launcher. Modules resolve their siblings in the package before considering legacy development locations.
+
+The welcome screen offers startup at sign-in. The package records the choice for first launch, including when existing preferences are present. On upgrades, the previous startup state supplies the default. Quiet deployments that intentionally override that default can pass `FORCESTARTUP=1 STARTWITHWINDOWS=1` (or `STARTWITHWINDOWS=""` for off). Other preferences remain intact. First-time dock settings leave taskbar replacement off until selected in Settings.
+
+Setup provides Start-menu shortcuts, standard Installed apps registration, repair, major-upgrade authoring, a downgrade check, and uninstall. Maintenance asks the modules to stop gracefully and does not kill a Settings window with pending edits. If Settings prevents shutdown, resolve its save/discard prompt and retry. Personal app data is preserved on uninstall.
+
+### Local validation
+
+```powershell
+.\installer\Build.ps1 -Version 0.1.0
+.\installer\Verify-Package.ps1
+```
+
+The verifier checks database structure, embedded cabinet, directory costing, and prerequisite detection without installing. Administrative extraction with `msiexec /a` was also exercised, and all 28 extracted payload files matched their manifest hashes. The packaged overview logic/graphics checks and launcher path check passed. The welcome screen and cancellation were inspected on the host; installation was not performed on the development account.
+
+Build output includes versioned payload manifests and a SHA-256 checksum. Builds use a fresh staging folder and replace the final MSI only after successful creation. Increase the three-part package version for each distributed update; do not replace a published version with different contents.
+
+### Disposable clean-machine trial
+
+```powershell
+# Optional second package exercises major upgrade as well.
+.\installer\Build.ps1 -Version 0.1.1
+.\installer\Prepare-Sandbox.ps1 -UpgradePackage .\artifacts\installer\Clean11-0.1.1-x64.msi -Launch
+```
+
+This creates `artifacts/installer/Test-Clean11.wsb`, a read-only `SandboxPackage` input folder, and a separate writable `SandboxResults` folder for test logs. Only those two dedicated folders are mapped; the repository and personal folders are not shared. Networking and clipboard redirection are disabled. The test runs with the inbox Windows PowerShell. Its interactive pause allows visual checks before repair, optional major upgrade/downgrade rejection, and uninstall. Results remain in the host's `SandboxResults` folder after the disposable environment closes.
+
+The script checks installation files, shortcuts, startup registration, module startup, graceful shutdown, repair, optional upgrade, uninstall, retained personal data, and an installation with startup disabled. Manually inspect dragging, search, the Windows-key overview, dock behavior, and taskbar recovery. Sandbox graphics are useful for compatibility testing but do not establish performance on physical hardware.
+
+Windows Sandbox was unavailable on the development host: the executable was absent and Windows reported no active hypervisor. The clean lifecycle test has therefore **not run**. Enable Sandbox on a suitable Windows 11 Pro/Enterprise machine with firmware virtualization and any required restart before launching the `.wsb` file. See [Microsoft's Sandbox installation instructions](https://learn.microsoft.com/en-us/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-install).
+
+### Before publishing binaries
+
+The MSI is an unsigned preview. Clean Sandbox lifecycle and recovery checks, the project's own license decision, signing/publisher identity, and a supported-build matrix remain release gates. Required dependency notices are bundled. The optional Everything SDK, third-party tray host, proprietary wallpapers, and personal app inventories are not bundled. The native Windows tray is available as a fallback, and the power action opens Windows power settings if the optional host is absent.

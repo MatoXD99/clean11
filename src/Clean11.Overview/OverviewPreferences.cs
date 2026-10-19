@@ -58,7 +58,7 @@ sealed class OverviewPreferences {
         string file=Path.Combine(root,"portable-apps.json");var json=new JavaScriptSerializer();var list=File.Exists(file)?json.Deserialize<List<string>>(File.ReadAllText(file)):new List<string>();list=list??new List<string>();list.Add(path);File.WriteAllText(file,json.Serialize(list.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()));
     }
     internal static void RunOverview(string arguments){
-        string exe=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),"Tools","ActivitiesOverview","ActivitiesOverview.exe");
+        string exe=Clean11Paths.Overview;
         if(!File.Exists(exe))throw new FileNotFoundException("Overview application is not installed.");
         Process.Start(new ProcessStartInfo(exe,arguments){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)});
     }

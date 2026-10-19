@@ -1,4 +1,4 @@
-param([string]$DependenciesRoot = (Join-Path $PSScriptRoot '../Clean11.Overview'))
+param([string]$DependenciesRoot = (Join-Path $PSScriptRoot '../Clean11.Overview'),[ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version='0.1.0')
 $ErrorActionPreference = 'Stop'
 $compiler = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
 $framework = Split-Path $compiler
@@ -15,16 +15,19 @@ $references += '/r:System.Numerics.dll','/r:System.Runtime.dll','/r:System.Runti
 $references += '/r:'+(Join-Path $out 'System.Numerics.Vectors.dll')
 foreach($metadata in @('Windows.Foundation','Windows.UI','Windows.Graphics')){$references += '/r:'+(Join-Path ([Environment]::GetFolderPath('Windows')) "System32/WinMetadata/$metadata.winmd")}
 $sources = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' | ForEach-Object FullName)
+$sources += Join-Path $shared 'Clean11Paths.cs'
 $sources += Join-Path $shared 'Clean11Fluent.cs'
 $sources += Join-Path $shared 'ActivityTheme.cs'
 $sources += Join-Path $shared 'OverviewPreferences.cs'
 $sources += Join-Path $shared 'FrostedMaterial.cs'
 $sources += Join-Path $shared 'DockBackdrop.cs'
 $sources += Join-Path $shared 'DockComposition.cs'
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:DockProgram "/win32manifest:$PSScriptRoot/app.manifest" "/out:$out/Clean11.Dock.exe" @references @sources
+$versionSource=Join-Path $out 'AssemblyVersion.cs'
+[IO.File]::WriteAllText($versionSource,('[assembly:System.Reflection.AssemblyVersion("{0}.0")][assembly:System.Reflection.AssemblyFileVersion("{0}.0")][assembly:System.Reflection.AssemblyCompany("Clean11 Contributors")][assembly:System.Reflection.AssemblyProduct("Clean11")]' -f $Version))
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:DockProgram "/win32manifest:$PSScriptRoot/app.manifest" "/out:$out/Clean11.Dock.exe" @references @sources $versionSource
 if($LASTEXITCODE -ne 0){throw 'Clean11 Dock build failed'}
 
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:SettingsProgram "/out:$out/Clean11.Settings.exe" (Join-Path $PSScriptRoot "SettingsProgram.cs")
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:SettingsProgram "/out:$out/Clean11.Settings.exe" (Join-Path $PSScriptRoot "SettingsProgram.cs") $versionSource
 if($LASTEXITCODE -ne 0){throw "Clean11 Settings launcher build failed"}
 
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Tray/style.css") -Destination (Join-Path $out "tray.css") -Force

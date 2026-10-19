@@ -18,7 +18,7 @@ sealed class DockState {
     static readonly string FileName=System.IO.Path.Combine(Root,"settings.json");
     internal static DockState Load(){
         if(File.Exists(FileName)){try{var state=new JavaScriptSerializer().Deserialize<DockState>(File.ReadAllText(FileName));if(state!=null){state.Pins=state.Pins??new List<DockPin>();state.PreviewColumns=Math.Max(1,Math.Min(5,state.PreviewColumns));state.IconSize=Math.Max(28,Math.Min(64,state.IconSize));state.Magnification=Math.Max(1,Math.Min(1.7,state.Magnification));if(!new[]{"Always","Auto-hide","Intelligent"}.Contains(state.Visibility))state.Visibility="Intelligent";return state;}}catch{try{File.Copy(FileName,FileName+".invalid-"+DateTime.UtcNow.Ticks);}catch{}}}
-        var fresh=new DockState();fresh.Pins=ImportSeelen();if(fresh.Pins.Count==0)fresh.Pins.Add(new DockPin{Name="File Explorer",Path="explorer.exe"});fresh.Save();return fresh;
+        var fresh=new DockState();fresh.Startup=Clean11Paths.StartupDefault;fresh.TakeOver=false;fresh.Pins=ImportSeelen();if(fresh.Pins.Count==0)fresh.Pins.Add(new DockPin{Name="File Explorer",Path="explorer.exe"});fresh.Save();return fresh;
     }
     internal void Save(){Directory.CreateDirectory(Root);string temp=FileName+".tmp";File.WriteAllText(temp,new JavaScriptSerializer().Serialize(this));if(File.Exists(FileName))File.Replace(temp,FileName,FileName+".bak");else File.Move(temp,FileName);}
     static string Value(string text){text=text.Trim();if(text=="null")return "";if(text.StartsWith("'")&&text.EndsWith("'"))return text.Substring(1,text.Length-2).Replace("''","'");if(text.StartsWith("\"")){try{return new JavaScriptSerializer().Deserialize<string>(text);}catch{}}return text;}
