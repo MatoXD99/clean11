@@ -13,6 +13,7 @@ using Drawing=System.Drawing;
 // sized WPF bitmap. These windows cannot activate or take search focus.
 sealed class OverviewBadge : Window {
     readonly TextBlock name;readonly Image icon;readonly Border surface,tint;
+    bool minimizedCard;Action restoreCard,closeCard;TextBlock subtitle,minimizedLabel;Wpf.Ui.Controls.Button closeButton;
     DockBackdrop glassBackdrop;readonly System.Windows.Threading.DispatcherTimer materialTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)};IntPtr hwnd;double dpi=1;
     [DllImport("user32.dll",EntryPoint="SetWindowLongPtrW")]static extern IntPtr SetWindowLongPtr(IntPtr window,int index,IntPtr value);
     internal OverviewBadge(Overview owner,Action<Forms.MouseEventArgs> move,Action<Forms.MouseEventArgs> down){
@@ -23,7 +24,7 @@ sealed class OverviewBadge : Window {
         SourceInitialized+=(s,e)=>{hwnd=new WindowInteropHelper(this).Handle;dpi=Native.GetDpiForWindow(hwnd)/96.0;SetWindowLongPtr(hwnd,-20,new IntPtr(Native.GetWindowLongPtr(hwnd,-20).ToInt64()|0x08000080));var source=HwndSource.FromHwnd(hwnd);source.AddHook((IntPtr window,int message,IntPtr w,IntPtr l,ref bool handled)=>{if(message==0x21){handled=true;return new IntPtr(3);}return IntPtr.Zero;});};
         materialTimer.Tick+=(s,e)=>RefreshGlass();IsVisibleChanged+=(s,e)=>{if(IsVisible)materialTimer.Start();else{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Hide();}};Closed+=(s,e)=>{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Close();};
         MouseMove+=(s,e)=>{var p=PointToScreen(e.GetPosition(this));move(new Forms.MouseEventArgs(Forms.MouseButtons.None,0,(int)p.X-owner.Left,(int)p.Y-owner.Top,0));};
-        MouseDown+=(s,e)=>{var p=PointToScreen(e.GetPosition(this));down(new Forms.MouseEventArgs(e.ChangedButton==MouseButton.Right?Forms.MouseButtons.Right:Forms.MouseButtons.Left,1,(int)p.X-owner.Left,(int)p.Y-owner.Top,0));e.Handled=true;};
+        MouseDown+=(s,e)=>{if(minimizedCard){if(e.ChangedButton==MouseButton.Left&&restoreCard!=null)restoreCard();e.Handled=true;return;}var p=PointToScreen(e.GetPosition(this));down(new Forms.MouseEventArgs(e.ChangedButton==MouseButton.Right?Forms.MouseButtons.Right:Forms.MouseButtons.Left,1,(int)p.X-owner.Left,(int)p.Y-owner.Top,0));e.Handled=true;};
     }
     internal void Place(Drawing.Rectangle preview,string text,Drawing.Icon image,bool glass){
         Opacity=1;
@@ -34,13 +35,46 @@ sealed class OverviewBadge : Window {
         if(!IsVisible)Show();UpdateLayout();if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(new WindowInteropHelper(this).Owner);}var prefs=OverviewPreferences.Load();
         glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(glass),prefs.GlassStrength);
     }
+    internal void PlaceMinimized(Drawing.Rectangle bounds,string app,string title,Drawing.Icon image,Action restore,Action close){
+        restoreCard=restore;closeCard=close;
+        if(!minimizedCard){
+            minimizedCard=true;Title="Clean11 minimized window";Cursor=Cursors.Hand;
+            var grid=new Grid{Margin=new Thickness(16,12,12,12)};
+            grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(52)});
+            grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});
+            grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(24)});
+            // Detach the existing icon and name before placing them in the card.
+            ((Panel)icon.Parent).Children.Remove(icon);((Panel)name.Parent).Children.Remove(name);
+            icon.Width=40;icon.Height=40;icon.Margin=new Thickness(0,0,12,0);grid.Children.Add(icon);
+            var labels=new StackPanel{VerticalAlignment=VerticalAlignment.Center};Grid.SetColumn(labels,1);
+            name.FontSize=14;name.FontWeight=FontWeights.SemiBold;name.MaxWidth=Double.PositiveInfinity;labels.Children.Add(name);
+            subtitle=new TextBlock{FontSize=12,TextTrimming=TextTrimming.CharacterEllipsis,Margin=new Thickness(0,4,0,0)};labels.Children.Add(subtitle);
+            minimizedLabel=new TextBlock{Text="Minimized",FontSize=11,Margin=new Thickness(0,7,0,0)};labels.Children.Add(minimizedLabel);grid.Children.Add(labels);
+            closeButton=new Wpf.Ui.Controls.Button{Content="Ãƒâ€”",Width=24,Height=24,Padding=new Thickness(0),FontSize=18,VerticalAlignment=VerticalAlignment.Top,Visibility=Visibility.Hidden,ToolTip="Close window",Focusable=false};
+            Clean11Fluent.Quiet(closeButton);Grid.SetColumn(closeButton,2);grid.Children.Add(closeButton);
+            closeButton.PreviewMouseDown+=(s,e)=>{e.Handled=true;};
+            closeButton.PreviewMouseUp+=(s,e)=>{e.Handled=true;if(e.ChangedButton==MouseButton.Left&&closeCard!=null)closeCard();};
+            closeButton.Click+=(s,e)=>{e.Handled=true;if(closeCard!=null)closeCard();};
+            MouseEnter+=(s,e)=>{closeButton.Visibility=Visibility.Visible;tint.Background=ActivityTheme.Brush("Hover","#244A6070");};
+            MouseLeave+=(s,e)=>{closeButton.Visibility=Visibility.Hidden;tint.Background=Brushes.Transparent;};
+            tint.Child=grid;
+        }
+        new WindowInteropHelper(this).EnsureHandle();
+        name.Text=app;subtitle.Text=title;ToolTip=title+" Ã‚Â· Click to restore";
+        if(image!=null&&icon.Source==null){var bitmap=Imaging.CreateBitmapSourceFromHIcon(image.Handle,Int32Rect.Empty,BitmapSizeOptions.FromWidthAndHeight(48,48));bitmap.Freeze();icon.Source=bitmap;}
+        Width=bounds.Width/dpi;Height=bounds.Height/dpi;Left=bounds.Left/dpi;Top=bounds.Top/dpi;
+        surface.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));surface.BorderBrush=FrostedMaterial.Edge();
+        subtitle.Visibility=Height<90?Visibility.Collapsed:Visibility.Visible;
+        name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");subtitle.Foreground=minimizedLabel.Foreground=ActivityTheme.Brush("Muted","#AABBCC");
+        if(!IsVisible)Show();UpdateLayout();if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(new WindowInteropHelper(this).Owner);}RefreshGlass();
+    }
     internal void SetHighlighted(bool highlighted){surface.BorderBrush=highlighted?ActivityTheme.Brush("Accent","#7BC7EF"):FrostedMaterial.Edge();}
-    void RefreshGlass(){if(!IsVisible||glassBackdrop==null)return;var prefs=OverviewPreferences.Load();name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);}
+    void RefreshGlass(){if(!IsVisible||glassBackdrop==null)return;var prefs=OverviewPreferences.Load();name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");if(minimizedCard)subtitle.Foreground=minimizedLabel.Foreground=ActivityTheme.Brush("Muted","#AABBCC");glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);}
 }
 
 partial class Overview {
     readonly System.Collections.Generic.Dictionary<IntPtr,OverviewBadge> previewBadges=new System.Collections.Generic.Dictionary<IntPtr,OverviewBadge>();
     bool HasSpotlightBadge(WindowItem window){OverviewBadge badge;return previewBadges.TryGetValue(window.Hwnd,out badge)&&badge.IsVisible;}
-    void PlaceSpotlightBadge(WindowItem window){OverviewBadge badge;if(!previewBadges.TryGetValue(window.Hwnd,out badge)){badge=new OverviewBadge(this,e=>OnMouseMove(e),e=>OnMouseDown(e));previewBadges[window.Hwnd]=badge;}var bounds=window.Preview;bounds.Offset(Left,Top);badge.Place(bounds,WindowAppName(window),AppIcon(window.ProcessPath),state.Glass);}
+    void PlaceSpotlightBadge(WindowItem window){OverviewBadge badge;if(!previewBadges.TryGetValue(window.Hwnd,out badge)){badge=new OverviewBadge(this,e=>OnMouseMove(e),e=>OnMouseDown(e));previewBadges[window.Hwnd]=badge;}var bounds=window.Preview;bounds.Offset(Left,Top);if(window.Minimized)badge.PlaceMinimized(bounds,WindowAppName(window),window.Title,AppIcon(window.ProcessPath),()=>ChooseWindow(window),()=>RequestWindowClose(window));else badge.Place(bounds,WindowAppName(window),AppIcon(window.ProcessPath),state.Glass);}
     void ReleaseSpotlightBadge(IntPtr window){OverviewBadge badge;if(previewBadges.TryGetValue(window,out badge)){badge.Close();previewBadges.Remove(window);}}
 }

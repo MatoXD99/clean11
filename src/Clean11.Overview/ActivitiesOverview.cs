@@ -669,7 +669,7 @@ partial class Overview : Form {
         foreach(var item in windows.OrderByDescending(w=>w.ZOrder)) {
             // A live high-refresh game surface can make DWM copy/compose the game
             // throughout the overview. Keep its switch/close card without that surface.
-            if(item.Game&&state.GameFriendly)continue;
+            if(item.Minimized||(item.Game&&state.GameFriendly))continue;
             if(Native.DwmRegisterThumbnail(previewHost.Handle,item.Hwnd,out item.Thumbnail)==0) {
                 Native.Size size;if(Native.DwmQueryThumbnailSourceSize(item.Thumbnail,out size)==0&&(!item.Minimized||(size.Width>=80&&size.Height>=60)))item.SourceSize=new System.Drawing.Size(size.Width,size.Height);
             }
@@ -715,15 +715,28 @@ partial class Overview : Form {
         browseBackBox=new Rectangle(searchBox.Left,U(153),searchBox.Width,U(34));
         search.Bounds=new Rectangle(searchBox.Left+U(46),searchBox.Top+U(16),searchBox.Width-U(150),U(30));
         Font searchFont=FontAt(19);if(search.Font!=searchFont)search.Font=searchFont;searchHint.Font=searchFont;searchHint.Bounds=search.Bounds;
-        var layout=WindowLayout.Arrange(windows.Select(w=>w.Minimized?WindowLayout.SourceSize(w.SourceSize,w.Original.Size):WindowLayout.SourceSize(w.Original.Size,w.SourceSize)).ToArray(),
-            new Rectangle(left,U(278),Math.Max(1,width),Math.Max(1,ClientSize.Height-U(365))),U(28),U(68),U(34),state.PreviewColumns);
-        for(int i=0;i<windows.Count;i++) {
-            windows[i].Card=layout.Footprints[i];windows[i].Preview=layout.Previews[i];
-            // Reserve a header above each native surface and its window title below.
-            var preview=windows[i].Preview;preview.Offset(0,U(34));windows[i].Preview=preview;
+        var live=windows.Where(w=>!w.Minimized).ToArray();
+        var minimized=windows.Where(w=>w.Minimized).ToArray();
+        int gap=U(14),columns=Math.Max(1,width/U(294));
+        int rows=(int)Math.Ceiling(minimized.Length/(double)columns);
+        int rowHeight=rows==0?0:Math.Min(U(112),Math.Max(U(48),(ClientSize.Height-U(360))/Math.Max(1,rows+2)));
+        int reserved=rows==0?0:rows*(rowHeight+gap)+U(30);
+        var layout=WindowLayout.Arrange(live.Select(w=>WindowLayout.SourceSize(w.Original.Size,w.SourceSize)).ToArray(),
+            new Rectangle(left,U(278),Math.Max(1,width),Math.Max(1,ClientSize.Height-U(365)-reserved)),U(28),U(68),U(34),state.PreviewColumns);
+        for(int i=0;i<live.Length;i++) {
+            live[i].Card=layout.Footprints[i];live[i].Preview=layout.Previews[i];
+            var preview=live[i].Preview;preview.Offset(0,U(34));live[i].Preview=preview;
         }
-        if(windows.Count>0)Native.Log("Proportional window layout: "+windows.Count+" windows, shared scale="+layout.Scale.ToString("F3"));
+        int startY=live.Length==0?Math.Max(U(240),(ClientSize.Height-reserved)/2):ClientSize.Height-U(80)-reserved;
+        for(int i=0;i<minimized.Length;i++) {
+            int row=i/columns,count=Math.Min(columns,minimized.Length-row*columns);
+            int cardWidth=Math.Min(U(280),(width-gap*(count-1))/count);
+            int startX=(ClientSize.Width-(count*cardWidth+(count-1)*gap))/2;
+            var bounds=new Rectangle(startX+(i%columns)*(cardWidth+gap),startY+U(30)+row*(rowHeight+gap),cardWidth,rowHeight);
+            minimized[i].Card=minimized[i].Preview=bounds;
+        }
     }
+
     internal static Rectangle Fit(System.Drawing.Size source,Rectangle bounds) {
         if(source.Width<=0||source.Height<=0)return bounds;
         double factor=Math.Min((double)bounds.Width/source.Width,(double)bounds.Height/source.Height);
@@ -1390,6 +1403,7 @@ partial class Overview : Form {
 
             for(int i=0;i<windows.Count;i++) {
                 var w=windows[i];
+                if(w.Minimized&&!diagnostic) {OverviewBadge minimizedBadge;if(previewBadges.TryGetValue(w.Hwnd,out minimizedBadge))minimizedBadge.SetHighlighted(i==selected||i==hover);continue;}
                 if(w.Thumbnail==IntPtr.Zero) {
                     FillRounded(g,w.Preview,U(ActivityTheme.PreviewRadius),ActivityTheme.Surface);
                     LabelText(g,w.Game?"Game · live preview off":"Preview unavailable",w.Preview,12,ActivityTheme.Muted);
