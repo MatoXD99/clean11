@@ -1,0 +1,68 @@
+{
+  "name": "Clean11 Horizon",
+  "version": 1,
+  "tool": "Built-in image_gen",
+  "generated": "2026-10-21",
+  "width": 1672,
+  "height": 941,
+  "upscaled": false,
+  "clock": "Local PC time",
+  "phases": [
+    {
+      "id": "predawn",
+      "name": "Pre-dawn",
+      "startsAtLocalMinute": 300,
+      "file": "predawn.png",
+      "sha256": "fc269d5f610df8e37bb02a4432d5c64833e4a8c0eedfbd758df125b2bb34d08f"
+    },
+    {
+      "id": "sunrise",
+      "name": "Sunrise",
+      "startsAtLocalMinute": 390,
+      "file": "sunrise.png",
+      "sha256": "0af6bb521bf2553f9b5e93d8006ae08c62292ba31a67d1e3f8a22224bc4a15ea"
+    },
+    {
+      "id": "morning",
+      "name": "Morning",
+      "startsAtLocalMinute": 480,
+      "file": "morning.png",
+      "sha256": "43e2511f9ecb1759e7d3a29c62ff5af9dc90c63aa34ac2d539c442c9e366d939"
+    },
+    {
+      "id": "midday",
+      "name": "Midday",
+      "startsAtLocalMinute": 660,
+      "file": "midday.png",
+      "sha256": "2f9c9b96e04aeb57eab8e6cdcc358eb599cba998bd2c211269fedaab06543d41"
+    },
+    {
+      "id": "afternoon",
+      "name": "Afternoon",
+      "startsAtLocalMinute": 900,
+      "file": "afternoon.png",
+      "sha256": "215384e0b5d659f3e292d7ff45d66cfce20bef96abfae9da82b3a84befdd0d0c"
+    },
+    {
+      "id": "sunset",
+      "name": "Sunset",
+      "startsAtLocalMinute": 1080,
+      "file": "sunset.png",
+      "sha256": "7d28f6e2417597a3a2da795bf13061fd82da9c21b8df24aa3621ede8330a014a"
+    },
+    {
+      "id": "twilight",
+      "name": "Twilight",
+      "startsAtLocalMinute": 1200,
+      "file": "twilight.png",
+      "sha256": "734cfc2f0f4539061593012a06930b464e384891bd67d94a11f2319699f9fde2"
+    },
+    {
+      "id": "night",
+      "name": "Night",
+      "startsAtLocalMinute": 1320,
+      "file": "night.png",
+      "sha256": "55b61cc9b76d38c44c2be9116f8c1cb3750d911fedaffa21979a28b2eb640de7"
+    }
+  ]
+}

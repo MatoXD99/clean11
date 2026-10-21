@@ -27,6 +27,8 @@ id_ed25519*
 *.log
 *.dmp
 *.etl
+src/Clean11.Overview/self-test.txt
+src/Clean11.Overview/graphics-self-test.txt
 private/
 local-data/
 captures/

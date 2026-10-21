@@ -4,7 +4,7 @@
 
 ### Windows, with room to breathe.
 
-A floating dock, a native top bar, a keyboard-first window overview, and a focused search experience — connected by one glass design system.
+A floating dock, a native top bar, a keyboard-first window overview, focused search, and desktop widgets — connected by one glass design system.
 
 **Windows 11 · C# / WPF · WPF UI · Active prototype**
 
@@ -56,9 +56,21 @@ File-search coverage depends on the available index/provider. The optional Every
 
 The top bar brings window actions, search, clock and calendar, Wi-Fi, Bluetooth, and sound controls into the same glass design. Select input/output devices and adjust app volumes from the integrated mixer. Advanced and device-specific controls remain available through Windows Settings.
 
+### Little spaces for your desktop
+
+Clock, calendar, local to-do, and notes bring useful information onto the desktop. Add cards from the gallery integrated into Clean11 Settings, arrange and resize them, and follow the same glass appearance as the rest of Clean11. Notes, tasks, and layouts stay on your PC. [Widget guide](docs/WIDGETS.md).
+
+*Included in v0.3.0 Alpha.*
+
+### A horizon that follows your day
+
+Clean11 Horizon is one original landscape in eight lighting states, switched using the local PC clock. New installations start with Dynamic Horizon after backing up the previous background; updates keep your existing preference. Choose Dynamic, Always light, or Always dark from the new Wallpaper page. Preview any time without changing the desktop, and restore the previous background when you turn Horizon off. [Wallpaper guide](docs/WALLPAPER.md).
+
+*Included in v0.3.0 Alpha.*
+
 ### One place to make it yours
 
-Appearance, Dock, Top Bar, Overview, Apps & search, and System live together in Clean11 Settings. Shared glass visibility and blur radius apply across supported Clean11 surfaces. Choose a material, tune motion, and decide whether **Live game previews** are enabled.
+Appearance, Wallpaper, Dock, Top Bar, Widgets, Overview, Apps & search, and System live together in Clean11 Settings. Shared glass visibility and blur radius apply across supported Clean11 surfaces. Choose a material, tune motion, and decide whether **Live game previews** are enabled.
 
 ![Actual Clean11 Settings window showing Appearance, shared glass visibility, and blur radius controls](docs/images/clean11-settings-screenshot.png)
 
@@ -70,23 +82,25 @@ Appearance, Dock, Top Bar, Overview, Apps & search, and System live together in 
 | **Search** | Apps, windows, Windows settings, favorites, and provider-dependent file/folder results |
 | **Floating dock** | Pins, running apps, magnification, grouped previews, Downloads, and hide modes |
 | **Top bar** | Active-app actions, calendar, battery, quick controls, Wi-Fi, Bluetooth, and audio mixer |
+| **Desktop widgets** | Clock, month calendar, local tasks and notes; gallery, sizes, saved layouts, shared glass (v0.3.0) |
 | **Settings** | Shared appearance, dock behavior, overview controls, and live game preview preference |
+| **Wallpaper** | Horizon: eight generated lighting states, offline local-time switching, previews, and previous-background restoration (v0.3.0) |
 | **Glass** | Adjustable visibility and blur, with a system fallback where composition is unavailable |
 | **Modern runtime** | Separate .NET 10 build candidate; the established app still uses .NET Framework |
 
-**This is a working prototype, not a finished desktop replacement.** A local preview MSI now packages the implemented modules; a clean Sandbox lifecycle test is still pending. The top bar and integrated device panels are included in v0.2.0 Alpha. The custom Desktop remains planned. Optional tray and power-menu integrations use available compatibility components, with native fallbacks; see [current limitations](docs/DOCK.md).
+**This is a working prototype, not a finished desktop replacement.** A local preview MSI now packages the implemented modules; a clean Sandbox lifecycle test is still pending. The top bar, integrated device panels, desktop widgets, unified Settings and Horizon wallpaper are included in v0.3.0 Alpha. The broader custom Desktop remains planned. Optional tray and power-menu integrations use available compatibility components, with native fallbacks; see [current limitations](docs/DOCK.md).
 
 ## Install the preview
 
-The MSI installs overview/search, the dock with its integrated top bar and device panels, unified Settings, runtime support DLLs, and dependency notices for the current Windows account. It adds Start-menu entries for **Clean11**, **Clean11 Settings**, and **Exit Clean11**, plus an optional sign-in startup entry. Windows 11 supplies the required .NET Framework runtime.
+The MSI installs overview/search, the dock with its integrated top bar and device panels, unified Settings, desktop widgets, Horizon wallpaper, runtime support DLLs, and dependency notices for the current Windows account. It adds Start-menu entries for **Clean11**, **Clean11 Settings**, and **Exit Clean11**, plus an optional sign-in startup entry. Windows 11 supplies the required .NET Framework runtime.
 
 Download the unsigned preview MSI from [GitHub Releases](https://github.com/MatoXD99/clean11/releases). Clean Sandbox lifecycle testing is still pending. To build an installer from source:
 
 ```powershell
-.\installer\Build.ps1 -Version 0.2.0
+.\installer\Build.ps1 -Version 0.3.0
 ```
 
-The result is `artifacts/installer/Clean11-0.2.0-x64.msi`. Double-click it to install. Open Clean11 from Start; first launch opens Settings so you can choose taskbar integration. Uninstall through Windows **Installed apps**; personal preferences are retained.
+The result is `artifacts/installer/Clean11-0.3.0-x64.msi`. Double-click it to install. Open Clean11 from Start; first launch opens Settings so you can choose taskbar integration. Uninstall through Windows **Installed apps**; personal preferences are retained.
 
 See [installer validation and Windows Sandbox](docs/BUILDING.md#installer-and-windows-sandbox) for the test workflow and current release gates. The preview package is unsigned and has not yet passed a clean Sandbox install/repair/upgrade/uninstall run.
 
@@ -115,6 +129,7 @@ Build outputs:
 - `src/Clean11.Overview/ActivitiesOverview.exe` — overview/search; the executable name is retained for compatibility.
 - `src/Clean11.Dock/bin/Clean11.Dock.exe` — floating dock and Settings host.
 - `src/Clean11.Dock/bin/Clean11.Settings.exe` — Settings launcher.
+- `src/Clean11.Dock/bin/Clean11.Widgets.exe` — desktop widget host; its gallery is integrated into Settings.
 
 Keep companion DLLs beside each executable. Building does **not** install the app. Read [build instructions](docs/BUILDING.md) and [dock installation and recovery](docs/DOCK.md) before enabling startup or changing bottom-bar integration.
 
@@ -149,7 +164,8 @@ See [privacy and release engineering](docs/PRIVACY-AND-RELEASE.md) for the compl
 - [ ] Broader performance, accessibility, and multi-monitor validation
 - [ ] Promote the modern runtime after compatibility checks
 - [x] Clean11 Top Bar with Wi-Fi, Bluetooth, and audio controls
-- [ ] Custom Desktop module
+- [x] Initial desktop widgets: clock, calendar, local to-do, and notes (source preview)
+- [ ] Broader custom Desktop module
 - [x] Preview per-user MSI and unified app launcher
 - [ ] Clean Sandbox lifecycle, upgrades, and recovery validation
 - [ ] Signed public installer release
@@ -161,6 +177,8 @@ Follow the [delivery roadmap](docs/ROADMAP.md) for the larger desktop-suite plan
 | Guide | What you'll find |
 | :-- | :-- |
 | [Build & performance](docs/BUILDING.md) | Dependencies, builds, diagnostics, and the modern-runtime candidate |
+| [Wallpaper](docs/WALLPAPER.md) | Horizon artwork, local schedule, settings, backups, and limitations |
+| [Desktop widgets](docs/WIDGETS.md) | Gallery, layouts, local content, material behavior, and credits |
 | [Dock](docs/DOCK.md) | Behavior, settings, installation, recovery, and limitations |
 | [Product plan](docs/PRODUCT-PLAN.md) | The complete Clean11 desktop vision |
 | [Design system](docs/DESIGN-SYSTEM.md) | Materials, spacing, typography, and motion |
@@ -192,6 +210,8 @@ Enjoying Clean11? Help fuel the next coding session. Every tip is appreciated an
 ## Credits & licensing
 
 Clean11 uses **[WPF UI](https://github.com/lepoco/wpfui)** by Leszek Pomianowski and the WPF UI Contributors, licensed under MIT. Its controls and themes are a foundation of the project. The required [license](licenses/WPF-UI-LICENSE.txt) and [third-party notices](THIRD-PARTY-NOTICES.md) are retained.
+
+Desktop widget bottom-order behavior selectively adapts **[DeskWidgets](https://github.com/VaticUI/DeskWidgets)** by VaticUI, under MIT. Its [full license](licenses/DESKWIDGETS-LICENSE.txt) is included in source and installer distributions. The widget UI and local data layer are implemented for Clean11.
 
 Adapted components also credit Flow Launcher / Wox and WindowScatter. See the notices for provenance and license texts.
 

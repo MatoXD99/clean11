@@ -28,7 +28,7 @@ sealed class OverviewBadge : Window {
         Clean11Fluent.Quiet(closeButton);DockPanel.SetDock(closeButton,Dock.Right);header.Children.Add(closeButton);header.Children.Add(content);
         tint=new Border{CornerRadius=new CornerRadius(ActivityTheme.GlassRadius-1),Child=header};surface=new Border{CornerRadius=new CornerRadius(ActivityTheme.GlassRadius),BorderBrush=ActivityTheme.Brush("Border","#536176"),BorderThickness=new Thickness(1),Child=tint};Content=surface;
         SourceInitialized+=(s,e)=>{hwnd=new WindowInteropHelper(this).Handle;dpi=Native.GetDpiForWindow(hwnd)/96.0;SetWindowLongPtr(hwnd,-20,new IntPtr(Native.GetWindowLongPtr(hwnd,-20).ToInt64()|0x08000080));var source=HwndSource.FromHwnd(hwnd);source.AddHook((IntPtr window,int message,IntPtr w,IntPtr l,ref bool handled)=>{if(message==0x21){handled=true;return new IntPtr(3);}return IntPtr.Zero;});};
-        materialTimer.Tick+=(s,e)=>RefreshGlass();IsVisibleChanged+=(s,e)=>{if(IsVisible)materialTimer.Start();else{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Hide();}};Closed+=(s,e)=>{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Close();};
+        materialTimer.Tick+=(s,e)=>RefreshGlass();IsVisibleChanged+=(s,e)=>{if(IsVisible&&glassBackdrop!=null)materialTimer.Start();else{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Hide();}};Closed+=(s,e)=>{materialTimer.Stop();if(glassBackdrop!=null)glassBackdrop.Close();};
         MouseMove+=(s,e)=>{var p=PointToScreen(e.GetPosition(this));move(new Forms.MouseEventArgs(Forms.MouseButtons.None,0,(int)p.X-owner.Left,(int)p.Y-owner.Top,0));};
         MouseDown+=(s,e)=>{if(closeButton!=null&&closeButton.IsMouseOver)return;if(minimizedCard){if(e.ChangedButton==MouseButton.Left&&restoreCard!=null)restoreCard();e.Handled=true;return;}var p=PointToScreen(e.GetPosition(this));down(new Forms.MouseEventArgs(e.ChangedButton==MouseButton.Right?Forms.MouseButtons.Right:Forms.MouseButtons.Left,1,(int)p.X-owner.Left,(int)p.Y-owner.Top,0));e.Handled=true;};
     }
@@ -47,9 +47,16 @@ sealed class OverviewBadge : Window {
         Left=bounds.Left/dpi;Top=bounds.Top/dpi-40;
     }
     internal void SetVisibilityProgress(double progress){
-        Opacity=Math.Max(0,Math.Min(1,progress));IsHitTestVisible=progress>=.99;
+        double opacity=Math.Max(0,Math.Min(1,progress));
+        if(Opacity==opacity&&IsVisible==(opacity>0))return;
+        Opacity=opacity;IsHitTestVisible=progress>=.99;
         if(progress<=0){Hide();return;}if(!IsVisible)Show();
-        if(glassBackdrop!=null){glassBackdrop.Opacity=Opacity;if(cachedGlassPreferences!=null)glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(cachedGlassPreferences.Glass),cachedGlassPreferences.GlassStrength);}
+        if(glassBackdrop!=null){
+            if(cachedGlassPreferences!=null)glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(cachedGlassPreferences.Glass),cachedGlassPreferences.GlassStrength,true);
+            // Keep this non-layered backdrop non-layered. Window.Opacity changes
+            // native window policy; the composition visual can fade directly.
+            glassBackdrop.SetMotionOpacity(Opacity);
+        }
     }
 
     internal void PlaceMinimized(Drawing.Rectangle bounds,string app,string title,Drawing.Icon image,Action restore,Action close){
@@ -83,7 +90,7 @@ sealed class OverviewBadge : Window {
         surface.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));surface.BorderBrush=FrostedMaterial.Edge();
         subtitle.Visibility=Height<90?Visibility.Collapsed:Visibility.Visible;
         name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");subtitle.Foreground=minimizedLabel.Foreground=ActivityTheme.Brush("Muted","#AABBCC");
-        if(!IsVisible&&Opacity>0)Show();UpdateLayout();if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(new WindowInteropHelper(this).Owner);}RefreshGlass();
+        if(!IsVisible&&Opacity>0)Show();UpdateLayout();if(glassBackdrop==null){glassBackdrop=new DockBackdrop();glassBackdrop.SetOwner(new WindowInteropHelper(this).Owner);}RefreshGlass();if(IsVisible)materialTimer.Start();
     }
     internal void SetHighlighted(bool highlighted){surface.BorderBrush=highlighted?new SolidColorBrush(Color.FromArgb(95,140,190,220)):new SolidColorBrush(Color.FromArgb(35,255,255,255));}
     void RefreshGlass(){if(!IsVisible||glassBackdrop==null)return;var prefs=OverviewPreferences.Load();cachedGlassPreferences=prefs;name.Foreground=ActivityTheme.Brush("Text","#F2F5FC");if(minimizedCard)subtitle.Foreground=minimizedLabel.Foreground=ActivityTheme.Brush("Muted","#AABBCC");glassBackdrop.Update(hwnd,Left,Top,Width,Height,dpi,true,FrostedMaterial.Enabled(prefs.Glass),prefs.GlassStrength);}
@@ -96,6 +103,7 @@ partial class Overview {
         if(!previewBadges.TryGetValue(window.Hwnd,out badge)){badge=new OverviewBadge(this,e=>OnMouseMove(e),e=>OnMouseDown(e));previewBadges[window.Hwnd]=badge;}badge.Opacity=opacity;badge.IsHitTestVisible=opacity>=.99;var bounds=window.Preview;bounds.Offset(Left,Top);if(window.Minimized)badge.PlaceMinimized(bounds,WindowAppName(window),window.Title,AppIcon(window.ProcessPath),()=>ChooseWindow(window),()=>RequestWindowClose(window));else badge.Place(bounds,WindowAppName(window),AppIcon(window.ProcessPath),state.Glass,()=>RequestWindowClose(window));}
     void UpdateMotionBadges(double progress){
         if(closing&&spotlight!=null)spotlight.UpdateOverviewExit(progress);
+        else if(openingMotion&&spotlight!=null)spotlight.UpdateOverviewEntrance(progress);
         foreach(var window in windows){
             OverviewBadge badge;if(!previewBadges.TryGetValue(window.Hwnd,out badge))continue;
             var original=window.Original;original.Offset(-desktop.Left,-desktop.Top);

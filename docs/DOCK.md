@@ -91,3 +91,11 @@ Settings > Dock separates Visibility (Never hide, Intelligent, Auto-hide) from *
 ### Adjustable blur radius
 
 Settings > Overview & search has a shared Blur radius control (0-40 px, default 8). Save applies it to the dock immediately and to search and previews on opening. Glass visibility remains an independent tint control. Zero removes Gaussian blur. The dock uses Windows Composition; initialization failure falls back to system blur and is indicated in Settings. Build.ps1 references desktop Windows WinMetadata and Framework WindowsRuntime assemblies. Runtime initialization succeeded; appearance has not been visually verified.
+
+### Taskbar reveal suppression
+
+When **Replace the bottom bar** is enabled, the dock watches native show, location, and foreground events for the taskbars it owns. Explorer reveal requests are suppressed through the same recovery journal used for normal hiding. The existing 150 ms dock pulse also checks tracked taskbar visibility; discovery remains throttled to one second. Hidden taskbars are not repeatedly sent hide requests. No unrelated app is activated or reordered by this guard.
+
+The hooks are removed before releasing the lease, so disabling replacement or exiting can restore the recorded visibility. Explicit temporary access to the native notification area retains its 15-second exemption. This applies to the dock's selected monitor.
+
+Local validation: three forced Explorer taskbar reveal requests ended with the taskbar hidden; one observed reveal was suppressed in about 10 ms. Native taskbar restoration on graceful exit and suppression on relaunch passed. A physical Windows-key/edge-hover interaction was not automated for this check.

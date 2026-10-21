@@ -27,6 +27,7 @@ partial class Overview {
     internal int SpotlightMotion {get{return state.MotionDuration;}}
     internal int SpotlightColumns {get{return state.PreviewColumns;}}
     internal bool SpotlightReduced {get{return reducedMotion;}}
+    internal bool SpotlightEntering {get{return openingMotion&&rendering;}}
     internal bool SpotlightGlass {get{return state.Glass;}}
     internal bool SpotlightGameFriendly {get{return state.GameFriendly;}}
     Rectangle SpotlightOrigin {get{var bounds=searchBox;bounds.Inflate(U(12),U(12));int center=bounds.Left+bounds.Width/2;bounds.Width=U(720);bounds.X=center-bounds.Width/2;bounds.Height=U(FavoriteItems().Count>0?124:64);bounds.Offset(Left,Top);return bounds;}}

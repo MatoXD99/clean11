@@ -21,10 +21,23 @@ if($LASTEXITCODE -ne 0){throw 'Launcher build failed.'}
 $libraries=@('Wpf.Ui.dll','Wpf.Ui.Abstractions.dll','System.Memory.dll','System.Buffers.dll','System.Numerics.Vectors.dll','System.Runtime.CompilerServices.Unsafe.dll')
 foreach($module in @('Overview','Dock')){
     $source=if($module -eq 'Dock'){"$repo/src/Clean11.Dock/bin"}else{"$repo/src/Clean11.Overview"}
-    $executables=if($module -eq 'Dock'){@('Clean11.Dock.exe','Clean11.Settings.exe')}else{@('ActivitiesOverview.exe')}
+    $executables=if($module -eq 'Dock'){@('Clean11.Dock.exe','Clean11.Settings.exe','Clean11.Widgets.exe')}else{@('ActivitiesOverview.exe')}
     foreach($exe in $executables){if([Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $source $exe)).FileVersion -ne ($Version+'.0')){throw "Component version does not match package $Version. Rebuild without -SkipBuild."}}
     foreach($file in ($libraries+$executables+@('ActivitiesTheme.json'))){Copy-Item -LiteralPath (Join-Path $source $file) -Destination "$stage/$module/$file"}
 }
+# Stage the shipped collection explicitly; stale local build assets never ship.
+$horizonSource=Join-Path $repo 'src/Clean11.Dock/bin/Wallpapers/Horizon'
+$horizonTarget=Join-Path $stage 'Dock/Wallpapers/Horizon'
+New-Item -ItemType Directory -Force $horizonTarget | Out-Null
+$horizonManifest=Get-Content (Join-Path $horizonSource 'manifest.json') -Raw | ConvertFrom-Json
+if($horizonManifest.phases.Count -ne 8){throw 'The Horizon package must contain eight lighting states.'}
+foreach($phase in $horizonManifest.phases){
+    if($phase.file -cne ($phase.id+'.png') -or $phase.id -cnotmatch '^(predawn|sunrise|morning|midday|afternoon|sunset|twilight|night)$'){throw 'Unexpected wallpaper asset in Horizon manifest.'}
+    $source=Join-Path $horizonSource $phase.file
+    if((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ine $phase.sha256){throw 'Horizon artwork does not match its manifest. Rebuild before packaging.'}
+    Copy-Item -LiteralPath $source -Destination $horizonTarget
+}
+Copy-Item -LiteralPath (Join-Path $horizonSource 'manifest.json') -Destination $horizonTarget
 Copy-Item "$repo/licenses/*.txt" "$stage/licenses/"
 Copy-Item "$repo/THIRD-PARTY-NOTICES.md" "$stage/"
 # Generate redirects from the actual assembly metadata, without loading app code.

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Forms=System.Windows.Forms;
 using Ui=Wpf.Ui.Controls;
@@ -16,91 +17,102 @@ sealed class DockSettings : Window {
     readonly List<Action> changes=new List<Action>();
     readonly Dictionary<string,StackPanel> pages=new Dictionary<string,StackPanel>();
     readonly Dictionary<string,Ui.Button> navigation=new Dictionary<string,Ui.Button>();
+    readonly Dictionary<string,Border> navigationFrames=new Dictionary<string,Border>();
+    readonly Dictionary<string,string> descriptions=new Dictionary<string,string>();
     readonly ContentControl pageHost=new ContentControl();
-    ScrollViewer pageScroll;DockBackdrop settingsGlass;readonly System.Windows.Threading.DispatcherTimer glassTimer=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(120)};
+    readonly Border shell;
+    readonly DispatcherTimer glassTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(750)};
+    ScrollViewer pageScroll;
     readonly TextBlock heading=new TextBlock(),subtitle=new TextBlock(),status=new TextBlock();
     readonly Ui.Button apply;
-    bool ready,dirty,nativeMove;
+    bool ready,dirty,glassQueued,closed;string materialKey="",selectedPage="";
     readonly Brush ink=ActivityTheme.Brush("Text","#F1F2F5"),muted=ActivityTheme.Brush("Muted","#A6ABB5");
     Border sampleGlass;TextBlock sampleTitle,sampleDetail;Grid sampleScene;
     ComboBox material;Slider visibility,blur;Ui.ToggleSwitch glass;
 
     internal DockSettings(DockWindow owner){
         dock=owner;prefs=OverviewPreferences.Load();Clean11Fluent.Apply(this);
-        Title="Clean11 Settings";Width=1020;Height=780;MinWidth=800;MinHeight=560;WindowStyle=WindowStyle.None;AllowsTransparency=true;ResizeMode=ResizeMode.CanResizeWithGrip;
-        WindowStartupLocation=WindowStartupLocation.CenterScreen;
-        FontFamily=new FontFamily("Segoe UI Variable, Segoe UI");FontSize=14;
+        Title="Clean11 Settings";Width=1080;Height=820;MinWidth=900;MinHeight=600;
+        WindowStyle=WindowStyle.None;AllowsTransparency=true;ResizeMode=ResizeMode.CanResizeWithGrip;
+        WindowStartupLocation=WindowStartupLocation.CenterScreen;FontFamily=new FontFamily("Segoe UI Variable, Segoe UI");FontSize=14;
         Background=Brushes.Transparent;SetResourceReference(ForegroundProperty,"Text");
-        var layout=new Grid();layout.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(210)});layout.ColumnDefinitions.Add(new ColumnDefinition());var windowRoot=new Grid();windowRoot.RowDefinitions.Add(new RowDefinition{Height=new GridLength(40)});windowRoot.RowDefinitions.Add(new RowDefinition());Grid.SetRow(layout,1);windowRoot.Children.Add(layout);
-        var caption=new Grid{Background=new SolidColorBrush(Color.FromArgb(1,0,0,0)),Margin=new Thickness(16,0,8,0)};
-        caption.MouseLeftButtonDown+=(s,e)=>{if(e.ClickCount==2)WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;else if(e.ButtonState==System.Windows.Input.MouseButtonState.Pressed)DragMove();};
-        var captionText=Label("Clean11 Settings",12,true);captionText.VerticalAlignment=VerticalAlignment.Center;caption.Children.Add(captionText);
-        var captionButtons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
+        var root=new Grid{Margin=new Thickness(24)};
+        root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});root.RowDefinitions.Add(new RowDefinition());root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        // Include the outer top/side padding in the caption's hit area. Child
+        // margins keep the visible title and buttons in their original places.
+        var caption=new Grid{Background=Brushes.Transparent,Margin=new Thickness(-24,-24,-24,24)};
+        caption.ColumnDefinitions.Add(new ColumnDefinition());caption.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
+        var captionText=Label("Clean11 Settings",24,false);captionText.Margin=new Thickness(24,24,0,0);captionText.FontWeight=FontWeights.SemiBold;captionText.VerticalAlignment=VerticalAlignment.Center;caption.Children.Add(captionText);
+        caption.MouseLeftButtonDown+=(s,e)=>{if(e.OriginalSource!=caption&&e.OriginalSource!=captionText)return;if(e.ClickCount==2)WindowState=WindowState==WindowState.Maximized?WindowState.Normal:WindowState.Maximized;else if(e.ButtonState==System.Windows.Input.MouseButtonState.Pressed)DragMove();};
+        var captionButtons=new StackPanel{Orientation=Orientation.Horizontal,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,24,24,0)};
         var minimize=Clean11Fluent.IconButton("Minimize","Subtract24",()=>WindowState=WindowState.Minimized);Clean11Fluent.Quiet(minimize);captionButtons.Children.Add(minimize);
-        var closeCaption=Clean11Fluent.IconButton("Close settings","Dismiss24",Close);Clean11Fluent.Quiet(closeCaption);captionButtons.Children.Add(closeCaption);caption.Children.Add(captionButtons);windowRoot.Children.Add(caption);
-        var shell=new Border{BorderThickness=new Thickness(1),BorderBrush=FrostedMaterial.Edge(),CornerRadius=new CornerRadius(ActivityTheme.GlassRadius),Background=new SolidColorBrush(Color.FromArgb(1,0,0,0)),Child=windowRoot};
-        windowRoot.SizeChanged+=(s,e)=>windowRoot.Clip=new RectangleGeometry(new Rect(0,0,Math.Max(0,windowRoot.ActualWidth),Math.Max(0,windowRoot.ActualHeight)),ActivityTheme.GlassRadius-1,ActivityTheme.GlassRadius-1);Content=shell;
-        var sidebar=new Grid{Background=ActivityTheme.Brush("Card","#2B2E34")};layout.Children.Add(sidebar);sidebar.SetResourceReference(Panel.BackgroundProperty,"Card");
-        sidebar.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});sidebar.RowDefinitions.Add(new RowDefinition());sidebar.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        var brand=new StackPanel{Margin=new Thickness(24,28,20,30)};brand.Children.Add(Label("Clean11",25,false));brand.Children.Add(Label("Make your desktop yours",12,true));sidebar.Children.Add(brand);
-        var nav=new StackPanel{Margin=new Thickness(12,0,12,0)};Grid.SetRow(nav,1);sidebar.Children.Add(nav);
-        var credit=Label("Built with WPF UI",11,true);credit.Margin=new Thickness(24,20,16,24);Grid.SetRow(credit,2);sidebar.Children.Add(credit);
-        var main=new Grid();Grid.SetColumn(main,1);layout.Children.Add(main);
-        main.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});main.RowDefinitions.Add(new RowDefinition());main.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        var titleArea=new StackPanel{Margin=new Thickness(30,26,30,20)};
-        heading.FontSize=28;heading.FontWeight=FontWeights.SemiBold;heading.SetResourceReference(TextBlock.ForegroundProperty,"Text");
-        subtitle.SetResourceReference(TextBlock.ForegroundProperty,"Muted");subtitle.FontSize=13;subtitle.TextWrapping=TextWrapping.Wrap;subtitle.Margin=new Thickness(0,6,0,0);titleArea.Children.Add(heading);titleArea.Children.Add(subtitle);main.Children.Add(titleArea);
-        var scroll=new ScrollViewer{Content=pageHost,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(30,0,24,24)};pageScroll=scroll;Grid.SetRow(scroll,1);main.Children.Add(scroll);
-        var footer=new Grid{Margin=new Thickness(30,16,30,18)};footer.ColumnDefinitions.Add(new ColumnDefinition());footer.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});footer.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
-        status.SetResourceReference(TextBlock.ForegroundProperty,"Muted");status.Text="All changes saved";status.TextWrapping=TextWrapping.Wrap;status.VerticalAlignment=VerticalAlignment.Center;status.Margin=new Thickness(0,0,16,0);footer.Children.Add(status);
-        var close=Clean11Fluent.Button("Close",Close,false);close.Margin=new Thickness(0,0,10,0);Grid.SetColumn(close,1);footer.Children.Add(close);
-        apply=Clean11Fluent.Button("Apply changes",Save,true);apply.IsEnabled=false;Grid.SetColumn(apply,2);footer.Children.Add(apply);
-        var footerFrame=new Border{BorderThickness=new Thickness(0,1,0,0),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),Child=footer};Grid.SetRow(footerFrame,2);main.Children.Add(footerFrame);
+        var close=Clean11Fluent.IconButton("Close settings","Dismiss24",Close);Clean11Fluent.Quiet(close);captionButtons.Children.Add(close);Grid.SetColumn(captionButtons,1);caption.Children.Add(captionButtons);root.Children.Add(caption);
+        var layout=new Grid();layout.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(190)});layout.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(24)});layout.ColumnDefinitions.Add(new ColumnDefinition());Grid.SetRow(layout,1);root.Children.Add(layout);
+        var sidebar=new Grid();sidebar.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});sidebar.RowDefinitions.Add(new RowDefinition());sidebar.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        var navTitle=Label("YOUR DESKTOP",10,true);navTitle.FontWeight=FontWeights.SemiBold;navTitle.Margin=new Thickness(14,16,12,14);sidebar.Children.Add(navTitle);
+        var nav=new StackPanel{Margin=new Thickness(8,0,8,0)};var navScroll=new ScrollViewer{Content=nav,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled};Grid.SetRow(navScroll,1);sidebar.Children.Add(navScroll);
+        var credit=Label("Made with WPF UI",11,true);credit.Margin=new Thickness(14,18,10,16);Grid.SetRow(credit,2);sidebar.Children.Add(credit);
+        var navFrame=new Border{Child=sidebar,CornerRadius=new CornerRadius(16),BorderThickness=new Thickness(1)};navFrame.SetResourceReference(Border.BackgroundProperty,"Card");navFrame.SetResourceReference(Border.BorderBrushProperty,"Divider");layout.Children.Add(navFrame);
+        var main=new Grid();main.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});main.RowDefinitions.Add(new RowDefinition());Grid.SetColumn(main,2);layout.Children.Add(main);
+        var titleArea=new StackPanel{Margin=new Thickness(0,4,8,22)};
+        heading.FontSize=26;heading.FontWeight=FontWeights.SemiBold;heading.SetResourceReference(TextBlock.ForegroundProperty,"Text");
+        subtitle.SetResourceReference(TextBlock.ForegroundProperty,"Muted");subtitle.FontSize=14;subtitle.TextWrapping=TextWrapping.Wrap;subtitle.Margin=new Thickness(0,7,0,0);titleArea.Children.Add(heading);titleArea.Children.Add(subtitle);main.Children.Add(titleArea);
+        pageScroll=new ScrollViewer{Content=pageHost,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled,Padding=new Thickness(0,0,4,8)};Grid.SetRow(pageScroll,1);main.Children.Add(pageScroll);
+        var footer=new Grid{Margin=new Thickness(214,20,0,0)};footer.ColumnDefinitions.Add(new ColumnDefinition());footer.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
+        status.SetResourceReference(TextBlock.ForegroundProperty,"Muted");status.Text="All changes saved · Your desktop, your way.";status.TextWrapping=TextWrapping.Wrap;status.FontSize=12;status.VerticalAlignment=VerticalAlignment.Center;status.Margin=new Thickness(0,0,20,0);footer.Children.Add(status);
+        apply=Clean11Fluent.Button("Apply changes",Save,true);apply.IsEnabled=false;Grid.SetColumn(apply,1);footer.Children.Add(apply);Grid.SetRow(footer,2);root.Children.Add(footer);
+        shell=new Border{BorderThickness=new Thickness(1),BorderBrush=FrostedMaterial.Edge(),CornerRadius=new CornerRadius(ActivityTheme.GlassRadius),Child=root};Content=shell;
+        shell.SizeChanged+=(s,e)=>shell.Clip=new RectangleGeometry(new Rect(0,0,Math.Max(0,shell.ActualWidth),Math.Max(0,shell.ActualHeight)),ActivityTheme.GlassRadius,ActivityTheme.GlassRadius);
         AddPage(nav,"Appearance","Materials, clarity, and a little personality.",Appearance());
-        AddPage(nav,"Dock","Layout, visibility, and the apps you keep close.",DockPage());
-        AddPage(nav,"Top Bar","Your apps, quick controls, and the time at a glance.",TopBarPage());
-        AddPage(nav,"Overview","Window previews and movement, tuned to your workflow.",OverviewPage());
-        AddPage(nav,"Apps & search","Manage shortcuts and discover Windows settings.",AppsPage());
-        AddPage(nav,"System","Startup, desktop integration, and useful controls.",SystemPage());
-        // The timer refreshes material preferences. Native messages own movement.
-        glassTimer.Tick+=(s,e)=>{if(!nativeMove)UpdateGlass();};
-        LocationChanged+=(s,e)=>{if(!nativeMove)UpdateGlass();};
-        SizeChanged+=(s,e)=>{if(!nativeMove)UpdateGlass();};
-        StateChanged+=(s,e)=>UpdateGlass();
-        IsVisibleChanged+=(s,e)=>{if(IsVisible){glassTimer.Start();UpdateGlass();}else{glassTimer.Stop();if(settingsGlass!=null)settingsGlass.Hide();}};
-        Closed+=(s,e)=>{glassTimer.Stop();if(settingsGlass!=null){settingsGlass.Close();settingsGlass=null;}};
-        ready=true;Select("Appearance","Materials, clarity, and a little personality.");UpdateSample();
-        SourceInitialized+=(s,e)=>{int dark=FrostedMaterial.Light?0:1,round=2;var h=new WindowInteropHelper(this).Handle;DockNative.DwmSetWindowAttribute(h,20,ref dark,4);DockNative.DwmSetWindowAttribute(h,33,ref round,4);HwndSource.FromHwnd(h).AddHook(SettingsMessages);};
-        Loaded+=(s,e)=>{var area=SystemParameters.WorkArea;MaxHeight=area.Height;MaxWidth=area.Width;};
+        AddPage(nav,"Wallpaper","One horizon. A different light for every part of your day.",new HorizonSettingsPage());
+        AddPage(nav,"Dock","The apps you keep close. The space you keep clear.",DockPage());
+        AddPage(nav,"Top Bar","Everyday controls, right where you need them.",TopBarPage());
+        AddPage(nav,"Widgets","Useful little spaces, styled your way.",new WidgetGalleryPage());
+        AddPage(nav,"Overview","Your windows, with room to breathe.",OverviewPage());
+        AddPage(nav,"Apps & search","Find your next thought, file, or favorite app.",AppsPage());
+        AddPage(nav,"System","A few essentials to make Clean11 feel at home.",SystemPage());
+        ready=true;SelectPage("Appearance");UpdateSample();
+        glassTimer.Tick+=(s,e)=>UpdateGlass();LocationChanged+=(s,e)=>QueueGlass();SizeChanged+=(s,e)=>QueueGlass();StateChanged+=(s,e)=>QueueGlass();
+        IsVisibleChanged+=(s,e)=>{if(IsVisible){glassTimer.Start();QueueGlass();}else glassTimer.Stop();};
+        Closed+=(s,e)=>{closed=true;glassTimer.Stop();};
+        SourceInitialized+=(s,e)=>{var h=new WindowInteropHelper(this).Handle;HwndSource.FromHwnd(h).AddHook(SettingsMessages);};
+        Loaded+=(s,e)=>{var area=SystemParameters.WorkArea;MinHeight=Math.Min(600,area.Height);MinWidth=Math.Min(900,area.Width);MaxHeight=area.Height;MaxWidth=area.Width;QueueGlass();};
         Closing+=(s,e)=>{if(!dirty)return;var answer=MessageBox.Show(this,"Apply your changes before closing?","Unsaved settings",MessageBoxButton.YesNoCancel,MessageBoxImage.Question);if(answer==MessageBoxResult.Cancel)e.Cancel=true;else if(answer==MessageBoxResult.Yes){Save();e.Cancel=dirty;}};
     }
-    IntPtr SettingsMessages(IntPtr window,int message,IntPtr w,IntPtr l,ref bool handled){
-        if(message==0x0231)nativeMove=true; // WM_ENTERSIZEMOVE
-        else if(message==0x0232){nativeMove=false;UpdateGlass();} // WM_EXITSIZEMOVE
-        else if(message==0x0046||message==0x0047){ // WM_WINDOWPOSCHANGING / CHANGED
-            if(settingsGlass!=null)settingsGlass.FollowHostPosition(window,l);
-        }else if(message==0x0005&&w.ToInt64()==1){if(settingsGlass!=null)settingsGlass.Hide();}
-        return IntPtr.Zero;
-    }
+    IntPtr SettingsMessages(IntPtr window,int message,IntPtr w,IntPtr l,ref bool handled){if(message==0x0047||message==0x02E0||message==0x0232)QueueGlass();return IntPtr.Zero;}
+    void QueueGlass(){if(closed||glassQueued)return;glassQueued=true;Dispatcher.BeginInvoke(DispatcherPriority.Render,(Action)(()=>{glassQueued=false;if(!closed)UpdateGlass();}));}
     void UpdateGlass(){
-        if(!IsVisible||WindowState==WindowState.Minimized){if(settingsGlass!=null)settingsGlass.Hide();return;}
-        var h=new WindowInteropHelper(this).Handle;DockNative.Rect bounds;if(h==IntPtr.Zero||!DockNative.GetWindowRect(h,out bounds))return;
-        if(settingsGlass==null)settingsGlass=new DockBackdrop();double scale=Math.Max(96,DockNative.GetDpiForWindow(h))/96.0;
-        var current=OverviewPreferences.Load();settingsGlass.Update(h,bounds.Left/scale,bounds.Top/scale,bounds.Width/scale,bounds.Height/scale,scale,true,FrostedMaterial.Enabled(current.Glass),current.GlassStrength);
+        if(closed||!IsVisible||WindowState==WindowState.Minimized)return;
+        var h=new WindowInteropHelper(this).Handle;DockNative.Rect bounds;if(h==IntPtr.Zero||!DockNative.GetWindowRect(h,out bounds)||bounds.Width<=0||bounds.Height<=0)return;
+        var p=OverviewPreferences.Appearance;string key=p.Glass+"|"+p.Strength+"|"+p.Radius+"|"+p.Light+"|"+bounds.Left+"|"+bounds.Top+"|"+bounds.Width+"|"+bounds.Height+"|"+(DateTime.UtcNow.Ticks/TimeSpan.FromSeconds(5).Ticks);
+        if(key==materialKey)return;materialKey=key;Clean11Fluent.RefreshPalette(this);shell.BorderBrush=FrostedMaterial.Edge();
+        shell.Background=FrostedMaterial.PanelBrush(new System.Drawing.Rectangle(bounds.Left,bounds.Top,bounds.Width,bounds.Height),Forms.Screen.FromHandle(h).Bounds,p.Glass);
     }
     TextBlock Label(string text,double size,bool secondary){var textBlock=new TextBlock{Text=text,FontSize=size,TextWrapping=TextWrapping.Wrap};textBlock.SetResourceReference(TextBlock.ForegroundProperty,secondary?"Muted":"Text");return textBlock;}
     void AddPage(Panel nav,string name,string description,StackPanel content){
-        pages[name]=content;var button=Clean11Fluent.Button(name,()=>Select(name,description),false);button.HorizontalContentAlignment=HorizontalAlignment.Left;button.HorizontalAlignment=HorizontalAlignment.Stretch;button.Height=44;button.Margin=new Thickness(0,0,0,6);button.Padding=new Thickness(14,0,14,0);navigation[name]=button;nav.Children.Add(button);
+        pages[name]=content;descriptions[name]=description;
+        var button=Clean11Fluent.Button(name,()=>SelectPage(name),false);Clean11Fluent.Quiet(button);
+        button.HorizontalContentAlignment=HorizontalAlignment.Left;button.HorizontalAlignment=HorizontalAlignment.Stretch;button.Height=44;button.Padding=new Thickness(12,0,10,0);
+        string symbol=name=="Appearance"?"WeatherSunny24":name=="Wallpaper"?"Image24":name=="Dock"?"Apps24":name=="Top Bar"?"Desktop24":name=="Widgets"?"Grid24":name=="Overview"?"WindowApps24":name=="Apps & search"?"Search24":"Settings24";
+        var label=new StackPanel{Orientation=Orientation.Horizontal};var icon=Clean11Fluent.Icon(symbol,18);icon.Margin=new Thickness(0,0,10,0);label.Children.Add(icon);var text=Label(name,13,false);text.VerticalAlignment=VerticalAlignment.Center;label.Children.Add(text);button.Content=label;
+        System.Windows.Automation.AutomationProperties.SetName(button,name);
+        var frame=new Border{CornerRadius=new CornerRadius(12),Margin=new Thickness(0,0,0,5),Child=button};navigation[name]=button;navigationFrames[name]=frame;nav.Children.Add(frame);
     }
-    void Select(string name,string description){heading.Text=name;subtitle.Text=description;pageHost.Content=pages[name];if(pageScroll!=null)pageScroll.ScrollToTop();foreach(var pair in navigation){pair.Value.Appearance=pair.Key==name?Ui.ControlAppearance.Secondary:Ui.ControlAppearance.Transparent;pair.Value.FontWeight=pair.Key==name?FontWeights.SemiBold:FontWeights.Normal;}}
-    void Changed(){if(!ready)return;dirty=true;apply.IsEnabled=true;status.Text="Unsaved changes";}
+    internal void SelectPage(string name){
+        if(!pages.ContainsKey(name))return;
+        selectedPage=name;apply.Visibility=(name=="Widgets"||name=="Wallpaper")&&!dirty?Visibility.Collapsed:Visibility.Visible;if(!dirty)status.Text=name=="Wallpaper"?"Wallpaper changes apply immediately - Previewing stays local to this page":name=="Widgets"?"Widgets save automatically - Stored on this PC":"All changes saved - Your desktop, your way.";
+        heading.Text=name=="Widgets"?"Desktop widgets":name;subtitle.Text=descriptions[name];
+        if(pageHost.Content!=pages[name]){pageHost.Content=pages[name];if(pageScroll!=null)pageScroll.ScrollToTop();}
+        foreach(var pair in navigation){pair.Value.FontWeight=pair.Key==name?FontWeights.SemiBold:FontWeights.Normal;if(pair.Key==name)navigationFrames[pair.Key].SetResourceReference(Border.BackgroundProperty,"Selected");else navigationFrames[pair.Key].Background=Brushes.Transparent;}
+    }
+    void Changed(){if(!ready)return;dirty=true;apply.IsEnabled=true;apply.Visibility=Visibility.Visible;status.Text="Unsaved settings changes";}
     void Save(){
-        try{foreach(var change in changes)change();prefs.Save();Clean11Fluent.RefreshPalette(this);UpdateGlass();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;status.Text="Saved. Shared appearance updated.";}
+        try{foreach(var change in changes)change();prefs.Save();Clean11Fluent.RefreshPalette(this);UpdateGlass();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;apply.Visibility=selectedPage=="Widgets"||selectedPage=="Wallpaper"?Visibility.Collapsed:Visibility.Visible;status.Text="Saved. Shared appearance updated.";}
         catch(Exception error){status.Text="Some changes could not be saved. Please try again.";DockLog.Write("Settings save failed: "+error.GetType().Name);dirty=true;apply.IsEnabled=true;}
     }
-    StackPanel Page(){return new StackPanel{MaxWidth=780,HorizontalAlignment=HorizontalAlignment.Stretch};}
+    StackPanel Page(){return new StackPanel{HorizontalAlignment=HorizontalAlignment.Stretch,Margin=new Thickness(0,0,12,0)};}
     void Section(Panel panel,string title){var text=Label(title,12,true);text.FontWeight=FontWeights.SemiBold;text.Margin=new Thickness(2,panel.Children.Count==0?0:20,0,10);panel.Children.Add(text);}
-    Border Card(UIElement content){var card=new Border{Background=ActivityTheme.Brush("Card","#2B2E34"),BorderBrush=ActivityTheme.Brush("Divider","#18FFFFFF"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.RowRadius),Padding=new Thickness(16),Margin=new Thickness(0,0,0,8),Child=content};card.SetResourceReference(Border.BackgroundProperty,"Card");card.SetResourceReference(Border.BorderBrushProperty,"Divider");return card;}
+    Border Card(UIElement content){var card=new Border{BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(16),Padding=new Thickness(18),Margin=new Thickness(0,0,0,10),Child=content};card.SetResourceReference(Border.BackgroundProperty,"Card");card.SetResourceReference(Border.BorderBrushProperty,"Divider");return card;}
     void Row(Panel panel,string title,string description,FrameworkElement control){
         var grid=new Grid();grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
         var labels=new StackPanel{VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,22,0)};var name=Label(title,14,false);name.FontWeight=FontWeights.SemiBold;labels.Children.Add(name);
@@ -118,8 +130,8 @@ sealed class DockSettings : Window {
     void ActionRow(Panel panel,string title,string description,string caption,Action action){var button=Clean11Fluent.Button(caption,()=>{try{action();}catch(Exception error){status.Text="Could not complete this action.";DockLog.Write("Settings action failed: "+error.GetType().Name);}},false);button.MinWidth=100;Row(panel,title,description,button);}
     StackPanel Appearance(){
         var panel=Page();
-        sampleScene=new Grid{Height=138,ClipToBounds=true,Background=new LinearGradientBrush(Color.FromRgb(36,109,153),Color.FromRgb(114,67,141),25)};
-        var wave=new System.Windows.Shapes.Ellipse{Width=300,Height=100,Fill=new SolidColorBrush(Color.FromRgb(100,203,201)),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(-40,15,0,0)};sampleScene.Children.Add(wave);
+        sampleScene=new Grid{Height=138,ClipToBounds=true,Background=new LinearGradientBrush(Color.FromRgb(40,64,86),Color.FromRgb(76,83,108),25)};
+        var wave=new System.Windows.Shapes.Ellipse{Width=300,Height=100,Fill=new SolidColorBrush(Color.FromRgb(151,173,183)),HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(-40,15,0,0)};sampleScene.Children.Add(wave);
         var sampleText=new StackPanel{Margin=new Thickness(20)};sampleTitle=Label("A calmer desktop",18,false);sampleTitle.FontWeight=FontWeights.SemiBold;sampleDetail=Label("Clean11 glass · material preview",12,true);sampleDetail.Margin=new Thickness(0,5,0,0);sampleText.Children.Add(sampleTitle);sampleText.Children.Add(sampleDetail);
         sampleGlass=new Border{CornerRadius=new CornerRadius(ActivityTheme.GlassRadius),BorderThickness=new Thickness(1),Margin=new Thickness(22,20,22,20),Child=sampleText};
         var sample=new Grid();sample.Children.Add(sampleScene);sample.Children.Add(sampleGlass);var frame=Card(sample);frame.Padding=new Thickness(0);frame.SizeChanged+=(s,e)=>frame.Clip=new RectangleGeometry(new Rect(0,0,Math.Max(0,frame.ActualWidth),Math.Max(0,frame.ActualHeight)),ActivityTheme.RowRadius,ActivityTheme.RowRadius);panel.Children.Add(frame);
@@ -157,5 +169,26 @@ sealed class DockSettings : Window {
     StackPanel OverviewPage(){var p=Page();Section(p,"WINDOWS");Choice(p,"Windows per row","Maximum columns in the window overview.",new[]{3,4,5},prefs.PreviewColumns,v=>prefs.PreviewColumns=v);Toggle(p,"Live game previews","Show live game content. Turn off to reduce GPU work.",prefs.LiveGamePreviews,v=>prefs.LiveGamePreviews=v);Section(p,"MOVEMENT");Range(p,"Animation duration","Time used for overview transitions.",prefs.MotionDuration,120,600,20," ms",v=>prefs.MotionDuration=(int)v);Toggle(p,"Reduce overview motion","Keep transitions immediate and distraction-free.",prefs.ReducedMotion,v=>prefs.ReducedMotion=v);return p;}
     StackPanel AppsPage(){var p=Page();Section(p,"SEARCH");ActionRow(p,"Portable applications","Add an executable or shortcut to search. Applies immediately.","Add app",()=>{var picker=new OpenFileDialog{Filter="Applications and shortcuts|*.exe;*.lnk"};if(picker.ShowDialog(this)==true){OverviewPreferences.AddPortable(picker.FileName);status.Text="Application added to search.";}});ActionRow(p,"Windows Settings index","Refresh the list of settings available on this PC.","Refresh",()=>{OverviewPreferences.RunOverview("--refresh-settings");status.Text="Settings index refresh requested.";});Section(p,"PIN TO DOCK");ActionRow(p,"Application or file","Add a dock pin now. Drag pins in the dock to reorder.","Add pin",()=>{var picker=new OpenFileDialog{Filter="Apps and shortcuts|*.exe;*.lnk|All files|*.*"};if(picker.ShowDialog(this)==true){dock.State.Pins.Add(DockState.FromPath(picker.FileName));dock.ApplySettings();status.Text="Dock pin added.";}});ActionRow(p,"Folder","Keep a folder within reach. Applies immediately.","Add folder",()=>{using(var picker=new Forms.FolderBrowserDialog()){if(picker.ShowDialog()==Forms.DialogResult.OK){dock.State.Pins.Add(DockState.FromPath(picker.SelectedPath));dock.ApplySettings();status.Text="Folder pinned.";}}});return p;}
     StackPanel SystemPage(){var p=Page();Section(p,"INTEGRATION");Toggle(p,"Start with Windows","Launch Clean11 when you sign in.",dock.State.Startup,v=>dock.State.Startup=v);Toggle(p,"Replace the bottom bar","Hide the existing bottom bar while Clean11 runs. Exiting restores it.",dock.State.TakeOver,v=>dock.State.TakeOver=v);Section(p,"TOOLS & ABOUT");ActionRow(p,"Power controls","Open available power controls or Windows power settings.","Open",()=>OverviewPreferences.RunOverview("--power-menu"));ActionRow(p,"Third-party licenses","Clean11 uses WPF UI and its supporting libraries.","View",()=>System.Diagnostics.Process.Start(Clean11Paths.Licenses));return p;}
-    internal static void SetStartup(bool enabled){using(var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){bool bundled=System.IO.File.Exists(Clean11Paths.Launcher);string name=bundled?"Clean11":"Clean11Dock";if(enabled)key.SetValue(name,"\""+(bundled?Clean11Paths.Launcher:DockProgram.Executable)+"\""+(bundled?" --background":""));else key.DeleteValue(name,false);if(bundled)key.DeleteValue("Clean11Dock",false);}}
+    internal static void SetStartup(bool enabled){
+        bool bundled=System.IO.File.Exists(Clean11Paths.Launcher);
+        string shortcut=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup),"Clean11 Dock.lnk");
+        // Development installs lack the unified launcher. Use a standard Startup
+        // shortcut, just like the standalone overview, and retire its old Run entry.
+        if(enabled&&!bundled){
+            object shell=null,link=null;
+            try{
+                shell=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));dynamic automation=shell;
+                link=automation.CreateShortcut(shortcut);dynamic item=link;
+                item.TargetPath=DockProgram.Executable;item.Arguments="--startup";
+                item.WorkingDirectory=System.IO.Path.GetDirectoryName(DockProgram.Executable);
+                item.Description="Start the Clean11 dock and top bar at sign-in";item.Save();
+            }finally{if(link!=null)System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link);if(shell!=null)System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);}
+        }
+        using(var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){
+            if(bundled&&enabled)key.SetValue("Clean11","\""+Clean11Paths.Launcher+"\" --background");
+            else key.DeleteValue("Clean11",false);
+            key.DeleteValue("Clean11Dock",false);
+        }
+        if((!enabled||bundled)&&System.IO.File.Exists(shortcut))System.IO.File.Delete(shortcut);
+    }
 }

@@ -12,5 +12,7 @@
     <PackageReference Include="WPF-UI" Version="4.3.0"/>
     <None Include="../Clean11.Overview/ActivitiesTheme.json" Link="ActivitiesTheme.json" CopyToOutputDirectory="PreserveNewest"/>
     <None Include="../Clean11.Dock/Tray/style.css" Link="tray.css" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="../../assets/wallpapers/horizon/*.png" Link="Wallpapers/Horizon/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest"/>
+    <Content Include="../../assets/wallpapers/horizon/manifest.json" Link="Wallpapers/Horizon/manifest.json" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 </Project>

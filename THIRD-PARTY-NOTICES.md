@@ -29,3 +29,13 @@ NuGet resolves System.Memory 4.6.3, System.Buffers 4.6.1, System.Numerics.Vector
 - Native wallpaper/preview presentation: WindowScatter, MIT. See [WINDOWSCATTER-LICENSE.txt](licenses/WINDOWSCATTER-LICENSE.txt).
 
 The optional Everything SDK DLL is not committed or redistributed by this repository. Existing installations can retain their configured file-index integration; new distributions require a separate SDK redistribution review.
+
+## DeskWidgets desktop behavior
+
+- Project: https://github.com/VaticUI/DeskWidgets
+- Copyright (c) 2026 VaticUI
+- License: MIT; full text: [licenses/DESKWIDGETS-LICENSE.txt](licenses/DESKWIDGETS-LICENSE.txt).
+- Reviewed source: `core.py`, desktop ownership / bottom-order behavior (`WidgetWindow.pin` and `nativeEvent`).
+- Upstream revision: e37bf4eb3427e2dc5c76937f3c6bf1bd27255ad3
+- Modifications: selectively adapted into C#/WPF in `src/Clean11.Dock/DesktopWidgets.cs`; replaced cross-process Progman ownership with positioning above the desktop to avoid implicit input-queue attachment; added `SWP_NOOWNERZORDER`, Clean11 lifecycle, persistence, controls, and shared material integration. The four widget implementations and gallery are implemented for Clean11. Python, PySide6/Qt, and upstream binaries/assets are not bundled.
+- Reviewed: 2026-10-21. Retain this notice and the full MIT license in source and installer distributions.

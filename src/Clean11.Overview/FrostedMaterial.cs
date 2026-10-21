@@ -15,8 +15,12 @@ using Forms=System.Windows.Forms;
 // application capture: only the user's wallpaper file is read. Per-pixel window
 // alpha owns the entire shape, including the material outside curved corners.
 static class FrostedMaterial {
-    static string signature="";
-    static BitmapSource wallpaper;
+    // A single slot thrashed when Settings/widgets requested different monitors.
+    // Frozen bitmaps can be reused; cap both entry count and retained pixels.
+    sealed class CachedMaterial {internal BitmapSource Image;internal long Used,Bytes;}
+    static readonly Dictionary<string,CachedMaterial> materials=new Dictionary<string,CachedMaterial>();
+    static long cacheSequence,cacheBytes;
+    internal static void Invalidate(){materials.Clear();cacheBytes=0;engineChecked=DateTime.MinValue;}
     static DateTime engineChecked=DateTime.MinValue;
     static string engineImage="";static Drawing.Rectangle engineScreen;
     static Dictionary<string,object> Map(object item){return item as Dictionary<string,object>;}
@@ -47,15 +51,27 @@ static class FrostedMaterial {
         try{
             string path=WallpaperPath(screen);string style="10",tile="0";
             using(var key=Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop")){if(key!=null){style=Convert.ToString(key.GetValue("WallpaperStyle","10"));tile=Convert.ToString(key.GetValue("TileWallpaper","0"));}}
-            string next=OverviewPreferences.Appearance.Radius+"|"+screen.ToString()+"|"+path+"|"+(File.Exists(path)?File.GetLastWriteTimeUtc(path).Ticks:0)+"|"+style+"|"+tile;
-            if(next!=signature){
-                wallpaper=Load(path,screen,style,tile);signature=next;
-                Trace.WriteLine("Frosted wallpaper material cached; screen="+screen.Width+"x"+screen.Height+", available="+(wallpaper!=null));
+            int radius=OverviewPreferences.Appearance.Radius;
+            string next=radius+"|"+screen.ToString()+"|"+path+"|"+(File.Exists(path)?File.GetLastWriteTimeUtc(path).Ticks:0)+"|"+style+"|"+tile;
+            CachedMaterial cached;
+            if(!materials.TryGetValue(next,out cached)){
+                var watch=Stopwatch.StartNew();var image=Load(path,screen,style,tile,radius);
+                if(image==null)return null;
+                long bytes=(long)image.PixelWidth*image.PixelHeight*4;
+                while(materials.Count>0&&(materials.Count>=4||cacheBytes+bytes>32L*1024*1024)){
+                    string oldest=null;long used=Int64.MaxValue;
+                    foreach(var pair in materials)if(pair.Value.Used<used){oldest=pair.Key;used=pair.Value.Used;}
+                    cacheBytes-=materials[oldest].Bytes;materials.Remove(oldest);
+                }
+                cached=new CachedMaterial{Image=image,Bytes=bytes};
+                if(bytes<=32L*1024*1024){materials[next]=cached;cacheBytes+=bytes;}
+                Trace.WriteLine("Frosted material build ms="+watch.Elapsed.TotalMilliseconds.ToString("F1")+", entries="+materials.Count);
             }
-            return wallpaper==null?null:new ImageBrush(wallpaper){Stretch=Stretch.Fill,ViewboxUnits=BrushMappingMode.RelativeToBoundingBox,TileMode=TileMode.None};
+            cached.Used=++cacheSequence;
+            return new ImageBrush(cached.Image){Stretch=Stretch.Fill,ViewboxUnits=BrushMappingMode.RelativeToBoundingBox,TileMode=TileMode.None};
         }catch(Exception error){Trace.WriteLine("Frosted wallpaper fallback: "+error.GetType().Name);return null;}
     }
-    static BitmapSource Load(string path,Drawing.Rectangle screen,string style,string tile){
+    static BitmapSource Load(string path,Drawing.Rectangle screen,string style,string tile,int radius){
         if(!File.Exists(path))return null;
         var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.UriSource=new Uri(path);image.DecodePixelWidth=1600;image.EndInit();image.Freeze();
         double scale=Math.Min(1,1280.0/screen.Width);int width=Math.Max(1,(int)Math.Ceiling(screen.Width*scale)),height=Math.Max(1,(int)Math.Ceiling(screen.Height*scale));
@@ -78,7 +94,7 @@ static class FrostedMaterial {
             }
         }
         var original=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);original.Render(drawing);original.Freeze();
-        var blur=new System.Windows.Controls.Image{Source=original,Width=width,Height=height,Stretch=Stretch.Fill,Effect=new BlurEffect{Radius=OverviewPreferences.Appearance.Radius*scale,KernelType=KernelType.Gaussian,RenderingBias=RenderingBias.Performance}};
+        var blur=new System.Windows.Controls.Image{Source=original,Width=width,Height=height,Stretch=Stretch.Fill,Effect=new BlurEffect{Radius=radius*scale,KernelType=KernelType.Gaussian,RenderingBias=RenderingBias.Performance}};
         blur.Measure(new Size(width,height));blur.Arrange(new Rect(0,0,width,height));
         var result=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);result.Render(blur);result.Freeze();return result;
     }

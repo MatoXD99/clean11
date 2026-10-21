@@ -4,6 +4,11 @@ $compiler = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET/F
 $framework = Split-Path $compiler
 $out = Join-Path $PSScriptRoot 'bin'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
+$horizon=Join-Path $PSScriptRoot '../../assets/wallpapers/horizon'
+$horizonOut=Join-Path $out 'Wallpapers/Horizon'
+New-Item -ItemType Directory -Force -Path $horizonOut | Out-Null
+foreach($phase in @('predawn','sunrise','morning','midday','afternoon','sunset','twilight','night')){Copy-Item -LiteralPath (Join-Path $horizon "$phase.png") -Destination $horizonOut -Force}
+if(Test-Path (Join-Path $horizon 'manifest.json')){Copy-Item -LiteralPath (Join-Path $horizon 'manifest.json') -Destination $horizonOut -Force}
 foreach($name in @('Wpf.Ui','Wpf.Ui.Abstractions','System.Memory','System.Buffers','System.Numerics.Vectors','System.Runtime.CompilerServices.Unsafe')){Copy-Item -LiteralPath (Join-Path $DependenciesRoot "$name.dll") -Destination $out -Force}
 $shared = Join-Path $PSScriptRoot '../Clean11.Overview'
 Copy-Item -LiteralPath (Join-Path $shared 'ActivitiesTheme.json') -Destination $out -Force
@@ -26,6 +31,8 @@ $versionSource=Join-Path $out 'AssemblyVersion.cs'
 [IO.File]::WriteAllText($versionSource,('[assembly:System.Reflection.AssemblyVersion("{0}.0")][assembly:System.Reflection.AssemblyFileVersion("{0}.0")][assembly:System.Reflection.AssemblyCompany("Clean11 Contributors")][assembly:System.Reflection.AssemblyProduct("Clean11")]' -f $Version))
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:DockProgram "/win32manifest:$PSScriptRoot/app.manifest" "/out:$out/Clean11.Dock.exe" @references @sources $versionSource
 if($LASTEXITCODE -ne 0){throw 'Clean11 Dock build failed'}
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:WidgetsProgram "/win32manifest:$PSScriptRoot/app.manifest" "/out:$out/Clean11.Widgets.exe" @references @sources $versionSource
+if($LASTEXITCODE -ne 0){throw 'Clean11 Widgets build failed'}
 
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:SettingsProgram "/out:$out/Clean11.Settings.exe" (Join-Path $PSScriptRoot "SettingsProgram.cs") $versionSource
 if($LASTEXITCODE -ne 0){throw "Clean11 Settings launcher build failed"}

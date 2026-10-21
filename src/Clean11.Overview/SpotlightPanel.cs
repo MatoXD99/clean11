@@ -32,7 +32,8 @@ sealed class SpotlightRow {
 sealed class SpotlightPanel : Window {
     readonly Overview overview;
     readonly Border surface;
-    readonly Grid root,searchPage;
+    readonly Grid root,searchPage,header;
+    readonly RectangleGeometry contentClip=new RectangleGeometry();
     readonly TextBox input;
     readonly TextBlock placeholder;
     readonly StackPanel settingsHeading;
@@ -81,8 +82,9 @@ sealed class SpotlightPanel : Window {
         Clean11Fluent.Apply(this);
         surface=new Border{CornerRadius=new CornerRadius(ActivityTheme.PanelRadius),BorderThickness=new Thickness(1),BorderBrush=(Brush)FindResource("Border"),Padding=new Thickness(0),SnapsToDevicePixels=true};Content=surface;
         root=new Grid{ClipToBounds=true};surface.Child=root;root.RowDefinitions.Add(new RowDefinition{Height=new GridLength(64)});root.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});root.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
-        root.SizeChanged+=(s,e)=>{root.Clip=new RectangleGeometry(new System.Windows.Rect(0,0,Math.Max(0,root.ActualWidth),Math.Max(0,root.ActualHeight)),7,7);};
-        var header=new Grid{Margin=new Thickness(20,12,14,12)};header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(32)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(36)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(36)});
+        contentClip.RadiusX=contentClip.RadiusY=7;root.Clip=contentClip;
+        root.SizeChanged+=(s,e)=>{if(!animating)contentClip.Rect=new System.Windows.Rect(0,0,Math.Max(0,root.ActualWidth),Math.Max(0,root.ActualHeight));};
+        header=new Grid{Margin=new Thickness(20,12,14,12)};header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(32)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(1,GridUnitType.Star)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(36)});header.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(36)});
         
         var searchGlyph=Clean11Fluent.Icon("Search24",20);searchGlyph.Foreground=Muted;header.Children.Add(searchGlyph);
         input=new TextBox{FocusVisualStyle=null,FontSize=20,Foreground=TextBrush,CaretBrush=Accent,Background=Brushes.Transparent,BorderThickness=new Thickness(0),Padding=new Thickness(0),VerticalContentAlignment=VerticalAlignment.Center,SelectionBrush=(Brush)FindResource("Selected"),Margin=new Thickness(8,0,10,0)};
@@ -184,7 +186,14 @@ sealed class SpotlightPanel : Window {
         var start=origin;if(entrance)start.Offset(0,-(int)Math.Round(12*dpi));
         Position(start);
         if(first){ApplyMaterial();root.Opacity=entrance?0:1;ShowActivated=focus;Show();ShowActivated=true;}
-        if(entrance){MoveTo(origin,start,false,null);enteringOverview=true;root.Opacity=0;}
+        if(entrance){
+            if(overview.SpotlightEntering){
+                // Native previews, captions and the header share the same
+                // submitted progress. A second WPF entrance clock could start
+                // a frame late and continue after the preview motion settled.
+                from=start;to=origin;presentedBounds=start;animating=true;enteringOverview=true;root.Opacity=0;if(glassBackdrop!=null)glassBackdrop.SetMotionOpacity(0);
+            }else{MoveTo(origin,start,false,null);enteringOverview=true;root.Opacity=0;}
+        }
         if(focus)FocusInput();
     }
     internal void ShowSearch(string query,Rect origin,bool reduced){
@@ -209,7 +218,7 @@ sealed class SpotlightPanel : Window {
     Rect Current(){if(animating)return presentedBounds;Native.Rect bounds;if(hwnd!=IntPtr.Zero&&Native.GetWindowRect(hwnd,out bounds))return bounds.Box;return new Rect((int)Math.Round(Left*dpi),(int)Math.Round(Top*dpi),Math.Max(1,(int)Math.Round(ActualWidth*dpi)),Math.Max(1,(int)Math.Round(ActualHeight*dpi)));}
     readonly System.Windows.Threading.DispatcherTimer animationCompletion=new System.Windows.Threading.DispatcherTimer();
     void FinishAnimation(object sender,EventArgs e){if(animating)Animate();}
-    void StopAnimation(){animationCompletion.Stop();animationCompletion.Tick-=FinishAnimation;if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;enteringOverview=false;root.Opacity=1;}
+    void StopAnimation(){animationCompletion.Stop();animationCompletion.Tick-=FinishAnimation;if(animating)CompositionTarget.Rendering-=RenderAnimation;animating=false;enteringOverview=false;root.Opacity=1;root.Width=root.Height=Double.NaN;root.HorizontalAlignment=HorizontalAlignment.Stretch;root.VerticalAlignment=VerticalAlignment.Stretch;header.Width=Double.NaN;}
     void RenderAnimation(object sender,EventArgs e){var frame=e as RenderingEventArgs;if(frame!=null){if(frame.RenderingTime==lastRender)return;lastRender=frame.RenderingTime;}Animate();}
     void BodyOpacity(double value){searchPage.Opacity=value;settingsPage.Opacity=value;settingsFooter.Opacity=value;}
     void MoveTo(Rect target,Rect start,bool reduced,Action done){StopAnimation();from=start;to=target;animationDone=done;animationDuration=Math.Max(120,Math.Min(600,overview.SpotlightMotion));clock.Restart();PerformanceEvents.Log.TransitionBegin("search");frameGaps.Clear();previousFrame=0;positionMilliseconds=0;transitionFrames=0;firstFrameMilliseconds=-1;
@@ -224,6 +233,11 @@ sealed class SpotlightPanel : Window {
             Width=Math.Max(from.Width,to.Width)/dpi;Height=Math.Max(from.Height,to.Height)/dpi;
             surface.HorizontalAlignment=HorizontalAlignment.Left;surface.VerticalAlignment=VerticalAlignment.Top;
             surface.Width=from.Width/dpi;surface.Height=from.Height/dpi;
+            // Keep the results/Settings tree laid out once at the largest shell
+            // size. Only the small header and outer border need new geometry;
+            // the reusable clip reveals the body without reflowing every row.
+            root.HorizontalAlignment=HorizontalAlignment.Left;root.VerticalAlignment=VerticalAlignment.Top;
+            root.Width=Math.Max(from.Width,to.Width)/dpi-2;root.Height=Math.Max(from.Height,to.Height)/dpi-2;
             UpdateLayout();presentedBounds=from;animating=true;Position(from);CompositionTarget.Rendering+=RenderAnimation;
             // Rendering callbacks can pause when the mixed WinForms/WPF scene
             // stops producing frames. Always settle geometry and opacity.
@@ -248,10 +262,11 @@ sealed class SpotlightPanel : Window {
             double t=Math.Min(1,(now-firstFrameMilliseconds)/animationDuration);
             double eased=Overview.MotionCurve(t);
             if(enteringOverview)root.Opacity=eased;
-            var positionWatch=Stopwatch.StartNew();
+            long positionStarted=Stopwatch.GetTimestamp();
             Position(new Rect((int)Math.Round(from.X+(to.X-from.X)*eased),(int)Math.Round(from.Y+(to.Y-from.Y)*eased),
                 (int)Math.Round(from.Width+(to.Width-from.Width)*eased),(int)Math.Round(from.Height+(to.Height-from.Height)*eased)));
-            positionMilliseconds+=positionWatch.Elapsed.TotalMilliseconds;PerformanceEvents.Log.Frame("search",t,positionWatch.Elapsed.TotalMilliseconds);
+            double workMilliseconds=(Stopwatch.GetTimestamp()-positionStarted)*1000.0/Stopwatch.Frequency;
+            positionMilliseconds+=workMilliseconds;PerformanceEvents.Log.Frame("search",t,workMilliseconds);
             double reveal=bodyTo>bodyFrom?Math.Max(0,Math.Min(1,(t-.18)/.66)):Math.Min(1,t/.55);
             reveal=reveal*reveal*(3-2*reveal);BodyOpacity(bodyFrom+(bodyTo-bodyFrom)*reveal);
             if(fadingPreviews)overview.FadeSpotlightPreviews((byte)Math.Round(fadeFrom+(fadeTo-fadeFrom)*eased));
@@ -263,10 +278,14 @@ sealed class SpotlightPanel : Window {
         }finally{advancingFrame=false;}
     }
     void Position(Rect bounds){
-        if(hwnd!=IntPtr.Zero)dpi=Math.Max(96,Native.GetDpiForWindow(hwnd))/96.0;
+        if(!animating&&hwnd!=IntPtr.Zero)dpi=Math.Max(96,Native.GetDpiForWindow(hwnd))/96.0;
         if(animating&&hwnd!=IntPtr.Zero){
             presentedBounds=bounds;
             surface.Width=bounds.Width/dpi;surface.Height=bounds.Height/dpi;
+            if(!exitingOverview){
+                header.Width=Math.Max(1,bounds.Width/dpi-36);
+                contentClip.Rect=new System.Windows.Rect(0,0,Math.Max(0,bounds.Width/dpi-2),Math.Max(0,bounds.Height/dpi-2));
+            }
             // UpdateGlass batches both HWND changes into one desktop commit.
             UpdateGlass();return;
         }
@@ -275,6 +294,13 @@ sealed class SpotlightPanel : Window {
         UpdateLayout();UpdateGlass();
     }
     Rect exitOrigin;double exitProgress,exitOpacity;bool exitingOverview;
+    internal void UpdateOverviewEntrance(double progress){
+        if(!enteringOverview||!IsVisible)return;
+        progress=Math.Max(0,Math.Min(1,progress));root.Opacity=progress;
+        Position(new Rect(to.X,(int)Math.Round(from.Y+(to.Y-from.Y)*progress),to.Width,to.Height));
+        if(glassBackdrop!=null)glassBackdrop.SetMotionOpacity(progress);
+        if(progress>=1){StopAnimation();Position(to);}
+    }
     internal void BeginOverviewExit(double progress){
         if(!IsVisible)return;
         exitOrigin=Current();exitOpacity=root.Opacity;exitProgress=Math.Max(.001,progress);

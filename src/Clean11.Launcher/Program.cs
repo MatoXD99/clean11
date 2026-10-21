@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -11,6 +11,7 @@ using Microsoft.Win32;
 static class Clean11Launcher {
     static readonly string Root=AppDomain.CurrentDomain.BaseDirectory;
     static readonly string Overview=Path.Combine(Root,"Overview","ActivitiesOverview.exe");
+    static readonly string Widgets=Path.Combine(Root,"Dock","Clean11.Widgets.exe");
     static readonly string Dock=Path.Combine(Root,"Dock","Clean11.Dock.exe");
     static void Start(string executable,string arguments){
         if(!File.Exists(executable))throw new FileNotFoundException("A Clean11 component is missing. Repair the installation.");
@@ -36,8 +37,9 @@ static class Clean11Launcher {
         // Ask the modules to save/close normally. Never kill an editor or discard settings.
         if(File.Exists(Dock)&&IsRunning(Dock))Start(Dock,"--shutdown");
         if(File.Exists(Overview)&&IsRunning(Overview))Start(Overview,"--shutdown");
+        if(File.Exists(Widgets)&&IsRunning(Widgets))Start(Widgets,"--shutdown");
         var deadline=DateTime.UtcNow.AddSeconds(20);
-        while(DateTime.UtcNow<deadline){if(!IsRunning(Dock)&&!IsRunning(Overview))return 0;Thread.Sleep(100);}
+        while(DateTime.UtcNow<deadline){if(!IsRunning(Dock)&&!IsRunning(Overview)&&!IsRunning(Widgets))return 0;Thread.Sleep(100);}
         MessageBox.Show("Please save or discard pending Clean11 Settings changes and close Settings, then retry setup.","Clean11 setup",MessageBoxButtons.OK,MessageBoxIcon.Information);
         return 1;
     }

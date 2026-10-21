@@ -542,7 +542,14 @@ partial class Overview : Form {
         lock(motionFrameGate)motionProgress=start;
         double duration=Math.Max(1,MotionMilliseconds(state.MotionDuration,reverse)*(reverse?start:1-start));
         UpdateMotionBadges(MotionCurve(start));
-        int badgeFramePending=0;
+        // One queued UI callback reads the latest submitted timeline sample.
+        // Capturing the first sample made captions trail behind native previews
+        // whenever the UI thread was busy, then jump on the following callback.
+        int badgeFramePending=0;double latestBadgeProgress=MotionCurve(start);
+        Action presentBadges=()=>{
+            try{if(!shuttingDown&&!token.IsCancellationRequested&&epoch==Volatile.Read(ref motionEpoch))UpdateMotionBadges(Volatile.Read(ref latestBadgeProgress));}
+            finally{Interlocked.Exchange(ref badgeFramePending,0);}
+        };
         motionThread=new Thread(()=> {
             Native.CompositionTiming compositionBefore;bool hasComposition=Native.ReadCompositionTiming(out compositionBefore);
             double targetHz=hasComposition&&compositionBefore.RefreshHz>20?compositionBefore.RefreshHz:165;
@@ -565,10 +572,8 @@ partial class Overview : Form {
                     }
                     double workMs=(Stopwatch.GetTimestamp()-updateStart)*1000.0/Stopwatch.Frequency;updates+=workMs;count++;
                     PerformanceEvents.Log.Frame("overview",progress,workMs);
-                    if(Interlocked.CompareExchange(ref badgeFramePending,1,0)==0){
-                        double badgeProgress=eased;
-                        BeginInvoke((Action)(()=>{try{if(!shuttingDown&&!token.IsCancellationRequested&&epoch==Volatile.Read(ref motionEpoch))UpdateMotionBadges(badgeProgress);}finally{Interlocked.Exchange(ref badgeFramePending,0);}}));
-                    }
+                    Volatile.Write(ref latestBadgeProgress,eased);
+                    if(Interlocked.CompareExchange(ref badgeFramePending,1,0)==0)BeginInvoke(presentBadges);
                     // As in WindowScatter, DWM presents the whole batch and paces
                     // the worker itself. No second timer wait after a real vsync,
                     // and no synchronous GDI/UI-thread painting during native motion.
@@ -630,6 +635,7 @@ partial class Overview : Form {
     }
     public void LoadApps(bool force=false) {
         if(shuttingDown||IsDisposed||Disposing)return;
+        if(rendering||(spotlight!=null&&spotlight.IsAnimating)){appRefreshDelay.Start();return;}
         if(!force&&(DateTime.UtcNow-lastAppRefresh).TotalSeconds<30)return;
         if(Interlocked.CompareExchange(ref appIndexLoading,1,0)!=0){appRefreshDelay.Start();return;}
         var thread=new Thread(()=> {
@@ -645,7 +651,7 @@ partial class Overview : Form {
                 }));
             }catch(Exception e){Native.Log("App catalogue refresh: "+e.GetType().Name);}
             finally{Interlocked.Exchange(ref appIndexLoading,0);}
-        });thread.IsBackground=true;thread.SetApartmentState(ApartmentState.STA);thread.Start();
+        });thread.IsBackground=true;thread.Priority=ThreadPriority.BelowNormal;thread.SetApartmentState(ApartmentState.STA);thread.Start();
     }
     public void Toggle() {
         PerformanceEvents.Log.Input("overview-toggle");
@@ -727,7 +733,8 @@ partial class Overview : Form {
         }catch(Exception e){Native.Log("Open failed: "+e);StopFocusHandoff();StopMotion();ReleaseThumbnails();Hide();rendering=false;}
     }
     void LayoutCards() {
-        int left=Math.Max(U(70),(ClientSize.Width-U(2680))/2), width=ClientSize.Width-left-U(70);
+        int width=Math.Max(1,Math.Min(U(2680),ClientSize.Width-2*U(70)));
+        int left=(ClientSize.Width-width)/2;
         int searchWidth=Math.Min(U(760),Math.Max(U(300),ClientSize.Width-U(48)));
         searchBox=new Rectangle((ClientSize.Width-searchWidth)/2,U(56),searchWidth,U(60));
         closeBox=new Rectangle(searchBox.Right-U(40),searchBox.Top+U(13),U(28),U(28));
@@ -744,7 +751,10 @@ partial class Overview : Form {
         int rowHeight=rows==0?0:Math.Min(U(112),Math.Max(U(48),(ClientSize.Height-U(360))/Math.Max(1,rows+2)));
         int reserved=rows==0?0:rows*(rowHeight+gap)+U(30);
         var layout=WindowLayout.Arrange(live.Select(w=>WindowLayout.SourceSize(w.Original.Size,w.SourceSize)).ToArray(),
-            new Rectangle(left,U(278),Math.Max(1,width),Math.Max(1,ClientSize.Height-U(365)-reserved)),U(28),U(68),U(34),state.PreviewColumns);
+            // Close buttons now live inside the captions. Preserve the existing
+            // space between previews without reserving a trailing button gutter,
+            // so the visible row is centered as well as its layout area.
+            new Rectangle(left,U(278),Math.Max(1,width),Math.Max(1,ClientSize.Height-U(365)-reserved)),U(62),U(68),0,state.PreviewColumns);
         for(int i=0;i<live.Length;i++) {
             live[i].Card=layout.Footprints[i];live[i].Preview=layout.Previews[i];
             var preview=live[i].Preview;preview.Offset(0,U(34));live[i].Preview=preview;
@@ -851,6 +861,7 @@ partial class Overview : Form {
     }
     void FinishEntrance(bool focusSearch=true) {
         if(shuttingDown||closing||!openingMotion)return;
+        if(spotlight!=null)spotlight.UpdateOverviewEntrance(1);
         // Typing must not re-select the textbox or activate a form mid-TextChanged.
         // Claim any final focus while redraws are still deferred by MotionActive.
         if(focusSearch&&Visible)FocusSearch();
@@ -885,6 +896,10 @@ partial class Overview : Form {
         if(generation==completedCloseGeneration)return;
         completedCloseGeneration=generation;
         StopFocusHandoff();
+        // An exit animation may finish after the user clicks another app.
+        // Restore our previous target only while we still own foreground input.
+        IntPtr closingForeground=Native.GetForegroundWindow();
+        bool restorePrevious=closingForeground==IntPtr.Zero||closingForeground==Handle||SpotlightOwnsForeground(closingForeground);
         ReleaseOwnPointerCapture();
         folderDelay.Stop();folderTimeout.Stop();folderGeneration++;folderReplyId=0;openFolderWhenReady=false;
         windowWatcher.Stop();StopMotion();HideSpotlight();rendering=false;openingMotion=false;Hide();ReleaseThumbnails();closing=false;
@@ -892,7 +907,7 @@ partial class Overview : Form {
         Action next=afterClose;afterClose=null;
         Native.Log("Overview close completed; selected="+(exitWindow==null?"none":exitWindow.ProcessName+"/"+exitWindow.Hwnd)+", generation="+generation);
         exitWindow=null;exitSearchBounds=Rectangle.Empty;
-        if(next!=null)next();else if(Native.IsWindow(previous))Native.SetForegroundWindow(previous);
+        if(next!=null)next();else if(restorePrevious&&Native.IsWindow(previous))Native.SetForegroundWindow(previous);
     }
     public void Abort() {if(shuttingDown||IsDisposed)return;closing=true;HideSpotlight();ReleaseOwnPointerCapture();StopFocusHandoff();folderDelay.Stop();folderTimeout.Stop();folderGeneration++;folderReplyId=0;openFolderWhenReady=localFolderPending=indexFolderPending=false;windowWatcher.Stop();StopMotion();Hide();ReleaseThumbnails();rendering=false;closing=false;openingMotion=false;}
     void ReleaseThumbnails() {ReleaseRoundedPreviews();foreach(var w in windows)if(w.Thumbnail!=IntPtr.Zero){Native.DwmUnregisterThumbnail(w.Thumbnail);w.Thumbnail=IntPtr.Zero;}}
@@ -1094,7 +1109,7 @@ partial class Overview : Form {
         }
     }
     void RefreshClosedWindows() {
-        if(!Visible||rendering)return;
+        if(!Visible||rendering||(spotlight!=null&&spotlight.IsAnimating))return;
         foreach(var window in windows.Where(w=>w.ClosePending).ToArray()) {
             IntPtr popup=Native.GetLastActivePopup(window.Hwnd);
             if(popup!=IntPtr.Zero&&popup!=window.Hwnd&&Native.IsWindowVisible(popup)) {
@@ -1345,7 +1360,7 @@ partial class Overview : Form {
         Bounds=Screen.FromPoint(Cursor.Position).Bounds;scale=Math.Max(1,Native.GetDpiForWindow(Handle)/96f);
         LayoutCards();EnsurePaintCache();
         using(var surface=Graphics.FromImage(chromeCache))PaintChrome(surface);
-        chromeDirty=false;Native.Log("Paint caches warmed while hidden");WarmSpotlight();LoadApps(true);
+        chromeDirty=false;Native.Log("Paint caches warmed while hidden");WarmSpotlight();appRefreshDelay.Start();
     }
     protected override void OnPaint(PaintEventArgs e) {
         var timing=Stopwatch.StartNew();EnsurePaintCache();
@@ -1544,6 +1559,7 @@ static class Program {
             Native.SetProcessDpiAwarenessContext(new IntPtr(-4));
             Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
             var form=new Overview();IntPtr handle=form.Handle;
+            Native.Log("WPF rendering tier="+(System.Windows.Media.RenderCapability.Tier>>16)+", process mode="+System.Windows.Media.RenderOptions.ProcessRenderMode+"; DWM previews and Windows Composition glass enabled where available");
             using(var superKey=new SuperKeyDispatcher(handle)) {
             var server=new Thread(()=> {while(true)try {using(var pipe=new NamedPipeServerStream(pipeName,PipeDirection.In,1)){pipe.WaitForConnection();int action=pipe.ReadByte();bool transition=action==1&&form.TransitionActive;int closeSequence=form.CloseSequence;Native.Log("Pipe action received="+action+", transition-at-receipt="+transition+", close-sequence="+closeSequence);if(action==1){form.BeginInvoke((Action)(()=>{bool current=Overview.IsToggleSignalCurrent(transition,closeSequence,form.TransitionActive,form.CloseSequence);if(!current){Native.Log("Queued Super toggle discarded because the overview state changed before dispatch");return;}form.Toggle();}));}else if(action==2)form.BeginInvoke((Action)form.Abort);else if(action==3)form.BeginInvoke((Action)(()=>{form.Abort();Application.ExitThread();}));}}catch{Thread.Sleep(200);}});
             server.IsBackground=true;server.Start();
