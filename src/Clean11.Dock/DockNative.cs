@@ -65,7 +65,7 @@ static class DockNative {
         },IntPtr.Zero);return result;
     }
     internal static void Activate(DockAppWindow window,bool toggle){if(!IsWindow(window.Handle))return;if(toggle&&GetForegroundWindow()==window.Handle&&!IsIconic(window.Handle)){ShowWindowAsync(window.Handle,6);return;}if(IsIconic(window.Handle))ShowWindowAsync(window.Handle,9);SetForegroundWindow(window.Handle);}
-    internal static bool Fullscreen(Forms.Screen screen,IntPtr own){var h=GetForegroundWindow();if(h==IntPtr.Zero||h==own||IsIconic(h))return false;string c=Class(h);if(c=="Progman"||c=="WorkerW"||c.StartsWith("Shell_"))return false;Rect r;if(!GetWindowRect(h,out r))return false;var b=screen.Bounds;return r.Left<=b.Left+2&&r.Top<=b.Top+2&&r.Right>=b.Right-2&&r.Bottom>=b.Bottom-2;}
+    internal static bool Fullscreen(Forms.Screen screen,IntPtr own){var h=GetForegroundWindow();if(h==IntPtr.Zero||h==own||IsIconic(h)||OverviewSceneNative.OwnsWindow(h))return false;string c=Class(h);if(c=="Progman"||c=="WorkerW"||c.StartsWith("Shell_"))return false;Rect r;if(!GetWindowRect(h,out r))return false;var b=screen.Bounds;return r.Left<=b.Left+2&&r.Top<=b.Top+2&&r.Right>=b.Right-2&&r.Bottom>=b.Bottom-2;}
     [ComImport,Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]interface ImageFactory{[PreserveSig]int GetImage(NativeSize size,uint flags,out IntPtr bitmap);}
     [DllImport("shell32.dll",CharSet=CharSet.Unicode)]static extern int SHCreateItemFromParsingName(string path,IntPtr context,ref Guid iid,out ImageFactory factory);
     [DllImport("gdi32.dll")]static extern bool DeleteObject(IntPtr bitmap);

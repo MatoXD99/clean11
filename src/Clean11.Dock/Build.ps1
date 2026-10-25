@@ -21,6 +21,8 @@ $references += '/r:'+(Join-Path $out 'System.Numerics.Vectors.dll')
 foreach($metadata in @('Windows.Foundation','Windows.UI','Windows.Graphics','Windows.Devices')){$references += '/r:'+(Join-Path ([Environment]::GetFolderPath('Windows')) "System32/WinMetadata/$metadata.winmd")}
 $sources = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.cs' | ForEach-Object FullName)
 $sources += Join-Path $shared 'Clean11Paths.cs'
+$sources += Join-Path $PSScriptRoot '../Clean11.Launcher/StartupRegistration.cs'
+$sources += Join-Path $shared 'OverviewScene.cs'
 $sources += Join-Path $shared 'Clean11Fluent.cs'
 $sources += Join-Path $shared 'ActivityTheme.cs'
 $sources += Join-Path $shared 'OverviewPreferences.cs'
@@ -37,4 +39,9 @@ if($LASTEXITCODE -ne 0){throw 'Clean11 Widgets build failed'}
 & $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:SettingsProgram "/out:$out/Clean11.Settings.exe" (Join-Path $PSScriptRoot "SettingsProgram.cs") $versionSource
 if($LASTEXITCODE -ne 0){throw "Clean11 Settings launcher build failed"}
 
+$launcherSource=Join-Path $PSScriptRoot '../Clean11.Launcher/Program.cs'
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ /main:Clean11Launcher "/out:$out/Clean11.exe" /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:System.Core.dll /r:Microsoft.CSharp.dll $launcherSource (Join-Path $PSScriptRoot '../Clean11.Launcher/StartupRegistration.cs') $versionSource
+if($LASTEXITCODE -ne 0){throw 'Clean11 unified launcher build failed'}
+
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Tray/style.css") -Destination (Join-Path $out "tray.css") -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot "Tray/toggle.js") -Destination (Join-Path $out "tray-toggle.js") -Force

@@ -43,7 +43,9 @@ sealed class SuperKeyDispatcher : IDisposable {
     }
     static bool ModifierHeld(){return Native.GetAsyncKeyState(0x10)<0||Native.GetAsyncKeyState(0x11)<0||Native.GetAsyncKeyState(0x12)<0;}
     void Install(){
-        if(disposed||tap.IsDown||Native.GetAsyncKeyState(0x5B)<0||Native.GetAsyncKeyState(0x5C)<0)return;
+        if(disposed||Native.GetAsyncKeyState(0x5B)<0||Native.GetAsyncKeyState(0x5C)<0)return;
+        // A missed release (or a hook Windows silently removed) must not leave
+        // the reducer permanently preventing its own recovery.
         if(hook!=IntPtr.Zero)UnhookWindowsHookEx(hook);
         tap.Reset();hook=SetWindowsHookEx(13,callback,GetModuleHandle(null),0);
         if(hook==IntPtr.Zero)Native.Log("Super dispatcher install failed: "+Marshal.GetLastWin32Error());
@@ -57,7 +59,11 @@ sealed class SuperKeyDispatcher : IDisposable {
                 // open Start on release. VK_E8 is an unassigned menu-mask key;
                 // no application keystroke, focus request or enumeration here.
                 var mask=new[]{new Input{Type=1,Data=new InputData{Keyboard=new KeyboardInput{Key=0xE8,Extra=new UIntPtr(0x41435456)}}},new Input{Type=1,Data=new InputData{Keyboard=new KeyboardInput{Key=0xE8,Flags=2,Extra=new UIntPtr(0x41435456)}}}};
-                if(SendInput(2,mask,InputSize)==2)Native.PostMessage(target,ToggleMessage,IntPtr.Zero,IntPtr.Zero);
+                bool masked=SendInput(2,mask,InputSize)==2;
+                // UIPI can reject the menu mask over an elevated application.
+                // Dispatching our own overview does not depend on injection.
+                Native.PostMessage(target,ToggleMessage,IntPtr.Zero,IntPtr.Zero);
+                if(!masked){Native.Log("Super menu mask rejected; bare release consumed, overview toggle dispatched");return new IntPtr(1);}
             }
         }
         return CallNextHookEx(hook,code,message,data);
@@ -68,7 +74,7 @@ sealed class SuperKeyDispatcher : IDisposable {
             IntPtr handle=dispatcher.Handle;Install();Native.Log("Native Super dispatcher ready="+(hook!=IntPtr.Zero));
             // Windows can silently discard a timed-out low-level hook. Renew
             // on this dedicated message pump, never during a Win-key chord.
-            watchdog.Interval=45000;watchdog.Tick+=(s,e)=>Install();watchdog.Start();
+            watchdog.Interval=10000;watchdog.Tick+=(s,e)=>Install();watchdog.Start();
             if(!disposed)Application.Run();watchdog.Stop();
             if(hook!=IntPtr.Zero){UnhookWindowsHookEx(hook);hook=IntPtr.Zero;}
         }

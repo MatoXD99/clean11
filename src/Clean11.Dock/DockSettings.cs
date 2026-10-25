@@ -83,10 +83,11 @@ sealed class DockSettings : Window {
     void QueueGlass(){if(closed||glassQueued)return;glassQueued=true;Dispatcher.BeginInvoke(DispatcherPriority.Render,(Action)(()=>{glassQueued=false;if(!closed)UpdateGlass();}));}
     void UpdateGlass(){
         if(closed||!IsVisible||WindowState==WindowState.Minimized)return;
-        var h=new WindowInteropHelper(this).Handle;DockNative.Rect bounds;if(h==IntPtr.Zero||!DockNative.GetWindowRect(h,out bounds)||bounds.Width<=0||bounds.Height<=0)return;
-        var p=OverviewPreferences.Appearance;string key=p.Glass+"|"+p.Strength+"|"+p.Radius+"|"+p.Light+"|"+bounds.Left+"|"+bounds.Top+"|"+bounds.Width+"|"+bounds.Height+"|"+(DateTime.UtcNow.Ticks/TimeSpan.FromSeconds(5).Ticks);
+        var bounds=FrostedMaterial.BoundsOnScreen(shell);if(bounds.IsEmpty)return;
+        var screen=Forms.Screen.FromPoint(new System.Drawing.Point(bounds.Left+bounds.Width/2,bounds.Top+bounds.Height/2));
+        var p=OverviewPreferences.Appearance;string key=p.Glass+"|"+p.Strength+"|"+p.Radius+"|"+p.Light+"|"+bounds+"|"+screen.Bounds+"|"+(DateTime.UtcNow.Ticks/TimeSpan.FromSeconds(5).Ticks);
         if(key==materialKey)return;materialKey=key;Clean11Fluent.RefreshPalette(this);shell.BorderBrush=FrostedMaterial.Edge();
-        shell.Background=FrostedMaterial.PanelBrush(new System.Drawing.Rectangle(bounds.Left,bounds.Top,bounds.Width,bounds.Height),Forms.Screen.FromHandle(h).Bounds,p.Glass);
+        shell.Background=FrostedMaterial.PanelBrush(bounds,screen.Bounds,p.Glass);
     }
     TextBlock Label(string text,double size,bool secondary){var textBlock=new TextBlock{Text=text,FontSize=size,TextWrapping=TextWrapping.Wrap};textBlock.SetResourceReference(TextBlock.ForegroundProperty,secondary?"Muted":"Text");return textBlock;}
     void AddPage(Panel nav,string name,string description,StackPanel content){
@@ -107,7 +108,7 @@ sealed class DockSettings : Window {
     }
     void Changed(){if(!ready)return;dirty=true;apply.IsEnabled=true;apply.Visibility=Visibility.Visible;status.Text="Unsaved settings changes";}
     void Save(){
-        try{foreach(var change in changes)change();prefs.Save();Clean11Fluent.RefreshPalette(this);UpdateGlass();SetStartup(dock.State.Startup);dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;apply.Visibility=selectedPage=="Widgets"||selectedPage=="Wallpaper"?Visibility.Collapsed:Visibility.Visible;status.Text="Saved. Shared appearance updated.";}
+        try{bool previousStartup=dock.State.Startup;foreach(var change in changes)change();SetStartup(dock.State.Startup,previousStartup!=dock.State.Startup);prefs.Save();Clean11Fluent.RefreshPalette(this);UpdateGlass();dock.CloseFlyout();dock.ApplySettings();dock.RefreshGlass();TrayAppearance.Sync();dirty=false;apply.IsEnabled=false;apply.Visibility=selectedPage=="Widgets"||selectedPage=="Wallpaper"?Visibility.Collapsed:Visibility.Visible;status.Text="Saved. Shared appearance updated.";}
         catch(Exception error){status.Text="Some changes could not be saved. Please try again.";DockLog.Write("Settings save failed: "+error.GetType().Name);dirty=true;apply.IsEnabled=true;}
     }
     StackPanel Page(){return new StackPanel{HorizontalAlignment=HorizontalAlignment.Stretch,Margin=new Thickness(0,0,12,0)};}
@@ -169,26 +170,8 @@ sealed class DockSettings : Window {
     StackPanel OverviewPage(){var p=Page();Section(p,"WINDOWS");Choice(p,"Windows per row","Maximum columns in the window overview.",new[]{3,4,5},prefs.PreviewColumns,v=>prefs.PreviewColumns=v);Toggle(p,"Live game previews","Show live game content. Turn off to reduce GPU work.",prefs.LiveGamePreviews,v=>prefs.LiveGamePreviews=v);Section(p,"MOVEMENT");Range(p,"Animation duration","Time used for overview transitions.",prefs.MotionDuration,120,600,20," ms",v=>prefs.MotionDuration=(int)v);Toggle(p,"Reduce overview motion","Keep transitions immediate and distraction-free.",prefs.ReducedMotion,v=>prefs.ReducedMotion=v);return p;}
     StackPanel AppsPage(){var p=Page();Section(p,"SEARCH");ActionRow(p,"Portable applications","Add an executable or shortcut to search. Applies immediately.","Add app",()=>{var picker=new OpenFileDialog{Filter="Applications and shortcuts|*.exe;*.lnk"};if(picker.ShowDialog(this)==true){OverviewPreferences.AddPortable(picker.FileName);status.Text="Application added to search.";}});ActionRow(p,"Windows Settings index","Refresh the list of settings available on this PC.","Refresh",()=>{OverviewPreferences.RunOverview("--refresh-settings");status.Text="Settings index refresh requested.";});Section(p,"PIN TO DOCK");ActionRow(p,"Application or file","Add a dock pin now. Drag pins in the dock to reorder.","Add pin",()=>{var picker=new OpenFileDialog{Filter="Apps and shortcuts|*.exe;*.lnk|All files|*.*"};if(picker.ShowDialog(this)==true){dock.State.Pins.Add(DockState.FromPath(picker.FileName));dock.ApplySettings();status.Text="Dock pin added.";}});ActionRow(p,"Folder","Keep a folder within reach. Applies immediately.","Add folder",()=>{using(var picker=new Forms.FolderBrowserDialog()){if(picker.ShowDialog()==Forms.DialogResult.OK){dock.State.Pins.Add(DockState.FromPath(picker.SelectedPath));dock.ApplySettings();status.Text="Folder pinned.";}}});return p;}
     StackPanel SystemPage(){var p=Page();Section(p,"INTEGRATION");Toggle(p,"Start with Windows","Launch Clean11 when you sign in.",dock.State.Startup,v=>dock.State.Startup=v);Toggle(p,"Replace the bottom bar","Hide the existing bottom bar while Clean11 runs. Exiting restores it.",dock.State.TakeOver,v=>dock.State.TakeOver=v);Section(p,"TOOLS & ABOUT");ActionRow(p,"Power controls","Open available power controls or Windows power settings.","Open",()=>OverviewPreferences.RunOverview("--power-menu"));ActionRow(p,"Third-party licenses","Clean11 uses WPF UI and its supporting libraries.","View",()=>System.Diagnostics.Process.Start(Clean11Paths.Licenses));return p;}
-    internal static void SetStartup(bool enabled){
+    internal static void SetStartup(bool enabled,bool explicitlyEnable=false){
         bool bundled=System.IO.File.Exists(Clean11Paths.Launcher);
-        string shortcut=System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup),"Clean11 Dock.lnk");
-        // Development installs lack the unified launcher. Use a standard Startup
-        // shortcut, just like the standalone overview, and retire its old Run entry.
-        if(enabled&&!bundled){
-            object shell=null,link=null;
-            try{
-                shell=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));dynamic automation=shell;
-                link=automation.CreateShortcut(shortcut);dynamic item=link;
-                item.TargetPath=DockProgram.Executable;item.Arguments="--startup";
-                item.WorkingDirectory=System.IO.Path.GetDirectoryName(DockProgram.Executable);
-                item.Description="Start the Clean11 dock and top bar at sign-in";item.Save();
-            }finally{if(link!=null)System.Runtime.InteropServices.Marshal.FinalReleaseComObject(link);if(shell!=null)System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);}
-        }
-        using(var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run")){
-            if(bundled&&enabled)key.SetValue("Clean11","\""+Clean11Paths.Launcher+"\" --background");
-            else key.DeleteValue("Clean11",false);
-            key.DeleteValue("Clean11Dock",false);
-        }
-        if((!enabled||bundled)&&System.IO.File.Exists(shortcut))System.IO.File.Delete(shortcut);
+        Clean11Startup.SetEnabled(enabled,bundled?Clean11Paths.Launcher:DockProgram.Executable,bundled?"--background --sign-in":"--startup",explicitlyEnable);
     }
 }

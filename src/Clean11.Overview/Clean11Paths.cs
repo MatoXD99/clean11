@@ -7,9 +7,9 @@ static class Clean11Paths {
     internal static string Root {
         get {
             string here=AppDomain.CurrentDomain.BaseDirectory;
-            if(File.Exists(Path.Combine(here,"Clean11.exe")))return here;
             string parent=Path.GetDirectoryName(here.TrimEnd(Path.DirectorySeparatorChar));
             if(parent!=null&&File.Exists(Path.Combine(parent,"Clean11.exe")))return parent;
+            if(File.Exists(Path.Combine(here,"Clean11.exe")))return here;
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","Clean11");
         }
     }
@@ -23,7 +23,9 @@ static class Clean11Paths {
         get {
             using(var installed=Registry.CurrentUser.OpenSubKey(@"Software\Clean11\Installer")) {
                 if(installed==null)return true;
-                using(var run=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))return run!=null&&run.GetValue("Clean11")!=null;
+                var pending=installed.GetValue("PendingStartup");if(pending!=null)return Convert.ToString(pending)=="1";
+                if(Convert.ToString(installed.GetValue("StartupEnabled"))=="1")return true;
+                using(var run=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))return run!=null&&(run.GetValue("Clean11")!=null||run.GetValue("Clean11Dock")!=null);
             }
         }
     }

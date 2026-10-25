@@ -12,6 +12,7 @@ using Windows.Devices.Radios;
 
 // Work only while a panel is open. No background scanning or audio polling.
 sealed class TopBarControls : StackPanel {
+    sealed class RouteChoice {internal string Id,Name;public override string ToString(){return Name;}}
     readonly string kind;
     readonly Action<string> open;
     readonly StackPanel body=new StackPanel();
@@ -115,10 +116,16 @@ sealed class TopBarControls : StackPanel {
         finally{watcher.Added-=added;watcher.Updated-=updated;watcher.Removed-=removed;if(watcher.Status==DeviceWatcherStatus.Started||watcher.Status==DeviceWatcherStatus.EnumerationCompleted)watcher.Stop();}
     }
     async Task Mixer(){
-        var sessions=await Task.Run(()=>TopBarAudio.Sessions());if(closed)return;body.Children.Clear();await DevicePicker(0,"Output device","Speaker224");await DevicePicker(1,"Input device","Mic24");if(closed)return;float level;bool muted;
+        var outputDevices=await Task.Run(()=>TopBarAudio.Endpoints(0));if(closed)return;var inputDevices=await Task.Run(()=>TopBarAudio.Endpoints(1));if(closed)return;var applications=await Task.Run(()=>TopBarAudio.Applications());if(closed)return;body.Children.Clear();
+        await DevicePicker(0,"Default output","Speaker224",outputDevices);await DevicePicker(1,"Default input","Mic24",inputDevices);if(closed)return;float level;bool muted;
         if(TopBarAudio.Read(out level,out muted))Volume(Card("Output volume","Current default output device","Speaker224"),level,muted,x=>TopBarAudio.Set(x),x=>TopBarAudio.Mute(x));
-        foreach(var session in sessions.OrderBy(x=>x.Name)){var item=session;Volume(Card(item.Name,null,"MusicNote224"),item.Level,item.Muted,x=>TopBarAudio.SetSession(item.Id,x,null),x=>TopBarAudio.SetSession(item.Id,null,x));}
-        status.Text=sessions.Count==0?"Play audio in an app to show its volume here.":"App volumes · Current default output device";
+        if(applications.Count>0){var hint=Label("App routing · Changes may take effect when the app restarts its audio stream.",12);hint.Margin=new Thickness(8,5,8,10);hint.SetResourceReference(TextBlock.ForegroundProperty,"Muted");body.Children.Add(hint);}
+        foreach(var application in applications){var app=application;app.OutputEndpointId=await Task.Run(()=>TopBarAudio.AppEndpoint(app.ProcessId,0));if(closed)return;app.InputEndpointId=await Task.Run(()=>TopBarAudio.AppEndpoint(app.ProcessId,1));if(closed)return;
+            string detail="PID "+app.ProcessId+(app.HasOutput?" · Audio active":"")+(app.HasInput?" · Microphone active":"");var card=Card(app.Name,detail,"MusicNote224");
+            AppRoutePicker(card,app,0,"Output device",outputDevices,app.OutputEndpointId);AppRoutePicker(card,app,1,"Input device",inputDevices,app.InputEndpointId);
+            foreach(var session in app.Sessions){var item=session;Volume(card,item.Level,item.Muted,x=>TopBarAudio.SetSession(item.Id,x,null),x=>TopBarAudio.SetSession(item.Id,null,x));}
+        }
+        status.Text=applications.Count==0?"No active app audio sessions. Start audio or microphone use to see app routing here.":"Active apps · Choose default devices above or set an app-specific route.";
     }
     static string DeviceProperty(DeviceInformation device,string key){object value;return device.Properties.TryGetValue(key,out value)&&value!=null?value.ToString():"";}
     static string DeviceKey(DeviceInformation device){string address=DeviceProperty(device,"System.Devices.Aep.DeviceAddress");return String.IsNullOrEmpty(address)?device.Id:address.Replace(":","").Replace("-","").ToUpperInvariant();}
@@ -127,13 +134,20 @@ sealed class TopBarControls : StackPanel {
         var confirmation=new StackPanel{Margin=new Thickness(0,8,0,0)};card.Tag=confirmation;confirmation.Children.Add(Label(message,12));
         var actions=new WrapPanel();actions.Children.Add(Button("Confirm removal",action));actions.Children.Add(Button("Cancel",()=>{card.Children.Remove(confirmation);card.Tag=null;return Task.FromResult(0);}));confirmation.Children.Add(actions);card.Children.Add(confirmation);
     }
-    async Task DevicePicker(int flow,string title,string symbol){
-        var devices=await Task.Run(()=>TopBarAudio.Endpoints(flow));if(closed)return;
-        var card=Card(title,"Default for apps and calls",symbol);
-        if(devices.Count==0){card.Children.Add(Label("No active device available",12));return;}
+    Task DevicePicker(int flow,string title,string symbol,List<TopBarAudio.Endpoint> devices){
+        if(closed)return Task.FromResult(0);var card=Card(title,"System-wide default for apps and calls",symbol);
+        if(devices.Count==0){card.Children.Add(Label("No active device available",12));return Task.FromResult(0);}
         var picker=new ComboBox{ItemsSource=devices,SelectedItem=devices.FirstOrDefault(x=>x.Default),Margin=new Thickness(0,5,0,4),MinHeight=34,HorizontalContentAlignment=HorizontalAlignment.Stretch};
         System.Windows.Automation.AutomationProperties.SetName(picker,title);picker.ToolTip=picker.SelectedItem;picker.SelectionChanged+=(s,e)=>picker.ToolTip=picker.SelectedItem;card.Children.Add(picker);
         var apply=Button("Use selected device",async()=>{var selected=picker.SelectedItem as TopBarAudio.Endpoint;if(selected==null)return;await Task.Run(()=>TopBarAudio.DefaultEndpoint(selected.Id));await Reload(false);});card.Children.Add(apply);
+        return Task.FromResult(0);
+    }
+    void AppRoutePicker(StackPanel card,TopBarAudio.Application app,int flow,string title,List<TopBarAudio.Endpoint> devices,string currentId){
+        var label=Label(title,12);label.Margin=new Thickness(0,7,0,1);label.SetResourceReference(TextBlock.ForegroundProperty,"Muted");card.Children.Add(label);
+        var choices=new List<RouteChoice>{new RouteChoice{Name="System default"}};choices.AddRange(devices.Select(x=>new RouteChoice{Id=x.Id,Name=x.Name}));
+        var selected=choices.FirstOrDefault(x=>String.Equals(x.Id,currentId,StringComparison.OrdinalIgnoreCase))??choices[0];
+        var picker=new ComboBox{ItemsSource=choices,SelectedItem=selected,Margin=new Thickness(0,1,0,4),MinHeight=32,HorizontalContentAlignment=HorizontalAlignment.Stretch};System.Windows.Automation.AutomationProperties.SetName(picker,app.Name+" "+title);picker.ToolTip=selected.Name;card.Children.Add(picker);
+        picker.SelectionChanged+=async(s,e)=>{var choice=picker.SelectedItem as RouteChoice;if(choice==null||closed)return;var previous=selected;selected=choice;picker.IsEnabled=false;status.Text="Applying "+title.ToLowerInvariant()+" for "+app.Name+"…";try{bool changed=await Task.Run(()=>TopBarAudio.SetAppEndpoint(app.ProcessId,flow,choice.Id));if(closed)return;if(!changed){picker.SelectedItem=previous;selected=previous;status.Text="Windows could not change this app's route. Try Windows Volume mixer from More settings.";}else{picker.ToolTip=choice.Name;status.Text=String.Equals(choice.Name,"System default",StringComparison.Ordinal)?app.Name+" now follows the system "+title.ToLowerInvariant()+".":app.Name+" routed to "+choice.Name+".";}}catch(Exception ex){if(!closed)status.Text=Error(ex);}finally{if(!closed)picker.IsEnabled=true;}};
     }
     void Volume(StackPanel card,float value,bool muted,Func<float,bool> set,Func<bool,bool> mute){
         var label=Label(Math.Round(value*100)+"%"+(muted?" · Muted":""),12);label.Margin=new Thickness(0,6,0,0);card.Children.Add(label);

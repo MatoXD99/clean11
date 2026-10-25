@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -107,7 +107,7 @@ class WindowItem {
 class AppItem { public string Name,Path,IconPath,Target,Arguments,Aliases; }
 class ResultItem { public string Label,Detail,FolderPath,FilePath,Action,Section; public int Rank; public WindowItem Window; public AppItem App; public SettingsEntry Setting; public Rectangle Bounds,SectionBounds; }
 class ResultMenuItem { public string Label,Command; public Rectangle Bounds; }
-class MotionSurface {public IntPtr Thumbnail;public Rectangle From,To;public bool HasOrigin;}
+class MotionSurface {public IntPtr Thumbnail;public Rectangle From,To;public bool HasOrigin,DesktopWidget;}
 class OverviewState {
     public List<string> Favorites=new List<string>(); public Dictionary<string,string> FavoriteNames=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string,int> Usage=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
@@ -285,6 +285,7 @@ partial class Overview : Form {
     bool chromeDirty=true;
     readonly Color foreground=ActivityTheme.Text;
     readonly bool diagnostic;
+    OverviewScenePublisher desktopScene;
     public Overview(bool diagnosticMode=false) {
         diagnostic=diagnosticMode;
         Text="Clean11 Overview";
@@ -336,7 +337,7 @@ partial class Overview : Form {
         focusSettleTimer.Interval=25;focusSettleTimer.Tick+=(s,e)=>SettleOpeningFocus();
         MouseWheel+=(s,e)=> {if(search.Text.Trim().Length==0)return;CloseResultMenu();resultNavigationUsed=true;resultScroll=Math.Max(0,Math.Min(Math.Max(0,results.Count-1),resultScroll-Math.Sign(e.Delta)*3));selected=Math.Max(resultScroll,Math.Min(selected,resultScroll+ResultRows()-1));LayoutResults();EnsureResultVisible(selected);Redraw();};
         FormClosing+=(s,e)=> {e.Cancel=true;EndOverview(null);};
-        if(!diagnostic){LoadState();apps=AppCatalog.ReadCache();appsReady=apps.Count>0;WatchAppCatalog();InitializeSpotlightCatalog();}
+        if(!diagnostic){desktopScene=new OverviewScenePublisher();LoadState();apps=AppCatalog.ReadCache();appsReady=apps.Count>0;WatchAppCatalog();InitializeSpotlightCatalog();}
     }
     int U(float value) { return (int)Math.Round(value*scale); }
     bool MotionActive {get{return rendering&&motionThread!=null;}}
@@ -541,6 +542,7 @@ partial class Overview : Form {
         double start=resume>=0?resume:(reverse?1:0);
         lock(motionFrameGate)motionProgress=start;
         double duration=Math.Max(1,MotionMilliseconds(state.MotionDuration,reverse)*(reverse?start:1-start));
+        if(desktopScene!=null)desktopScene.Transition(reverse?0:1,(int)Math.Round(duration));
         UpdateMotionBadges(MotionCurve(start));
         // One queued UI callback reads the latest submitted timeline sample.
         // Capturing the first sample made captions trail behind native previews
@@ -715,7 +717,7 @@ partial class Overview : Form {
             // Prepare native surfaces at their desktop positions before exposing the
             // wallpaper host. Showing it first produces a wallpaper-only flash.
             var preparation=Stopwatch.StartNew();var phase=Stopwatch.StartNew();
-            previewHost.Prepare(desktop);double wallpaperPreparationMs=phase.Elapsed.TotalMilliseconds;
+            previewHost.Prepare(desktop);previewHost.PrepareWidgetPreviews(desktop);double wallpaperPreparationMs=phase.Elapsed.TotalMilliseconds;
             phase.Restart();ReadWindows();double windowDiscoveryMs=phase.Elapsed.TotalMilliseconds;
             phase.Restart();LayoutCards();RebuildResults();UpdateThumbnails(0);double layoutMs=phase.Elapsed.TotalMilliseconds;
             phase.Restart();EnsurePaintCache();using(var surface=Graphics.FromImage(chromeCache))PaintChrome(surface);chromeDirty=false;double chromeCacheMs=phase.Elapsed.TotalMilliseconds;
@@ -723,6 +725,7 @@ partial class Overview : Form {
             var liveIds=new HashSet<IntPtr>(windows.Select(w=>w.Hwnd));foreach(var gone in previewBadges.Keys.Where(key=>!liveIds.Contains(key)).ToArray())ReleaseSpotlightBadge(gone);
             foreach(var window in windows){PlaceSpotlightBadge(window,0);}
             UpdateMotionBadges(0);
+            if(desktopScene!=null)desktopScene.Transition(1,reducedMotion?0:state.MotionDuration);
             previewHost.Show();Show();Activate();bool foreground=Native.SetForegroundWindow(Handle);FocusSearch();Update();
             Native.Log("Prepared complete scene before show; total ms="+preparation.Elapsed.TotalMilliseconds.ToString("F1")+", wallpaper ms="+wallpaperPreparationMs.ToString("F1")+", windows ms="+windowDiscoveryMs.ToString("F1")+", layout-and-thumbnails ms="+layoutMs.ToString("F1")+", chrome-cache ms="+chromeCacheMs.ToString("F1")+", foreground="+foreground);
             frames=0;thumbnailMs=paintMs=motionPaintMs=0;StartMotion();
@@ -730,7 +733,7 @@ partial class Overview : Form {
             Native.Log("Opened: "+windows.Count+" windows, "+windows.Count(w=>w.Thumbnail!=IntPtr.Zero)+" live DWM surfaces");
             if(windows.Any(w=>w.Game))Native.Log("Game-friendly overview: game live surfaces omitted="+windows.Count(w=>w.Game));
             if(reducedMotion)FinishEntrance();
-        }catch(Exception e){Native.Log("Open failed: "+e);StopFocusHandoff();StopMotion();ReleaseThumbnails();Hide();rendering=false;}
+        }catch(Exception e){if(desktopScene!=null)desktopScene.Transition(0,160);Native.Log("Open failed: "+e);StopFocusHandoff();StopMotion();ReleaseThumbnails();Hide();rendering=false;}
     }
     void LayoutCards() {
         int width=Math.Max(1,Math.Min(U(2680),ClientSize.Width-2*U(70)));
@@ -790,12 +793,12 @@ partial class Overview : Form {
             bool valid=(!w.Minimized||(closing&&w==exitWindow))&&original.Width>0&&original.Height>0&&original.IntersectsWith(ClientRectangle);
             Rectangle preview=closing&&w==exitWindow&&!exitSearchBounds.IsEmpty?Fit(original.Size,exitSearchBounds):w.Preview;
             return new MotionSurface{Thumbnail=w.Thumbnail,From=original,To=preview,HasOrigin=valid};
-        }).ToArray();
+        }).Concat(previewHost.WidgetSurfaces).ToArray();
     }
     static void ApplySurfaces(MotionSurface[] surfaces,double t,bool visible) {
         foreach(var surface in surfaces) {
             Rectangle destination=surface.HasOrigin?Mix(surface.From,surface.To,t):surface.To;
-            var props=new Native.Props{Flags=1|4|8|16,Destination=new Native.Rect(destination),Opacity=(byte)(surface.HasOrigin?255:Math.Round(255*t)),Visible=visible,ClientOnly=false};
+            var props=new Native.Props{Flags=1|4|8|16,Destination=new Native.Rect(destination),Opacity=(byte)(surface.DesktopWidget?Math.Round(255*(1-t)):surface.HasOrigin?255:Math.Round(255*t)),Visible=visible,ClientOnly=false};
             Native.DwmUpdateThumbnailProperties(surface.Thumbnail,ref props);
         }
     }
@@ -861,6 +864,8 @@ partial class Overview : Form {
     }
     void FinishEntrance(bool focusSearch=true) {
         if(shuttingDown||closing||!openingMotion)return;
+        if(desktopScene!=null)desktopScene.Transition(1,reducedMotion?0:state.MotionDuration);
+        previewHost.HideWidgetPreviews();
         if(spotlight!=null)spotlight.UpdateOverviewEntrance(1);
         // Typing must not re-select the textbox or activate a form mid-TextChanged.
         // Claim any final focus while redraws are still deferred by MotionActive.
@@ -892,6 +897,7 @@ partial class Overview : Form {
         StartMotion(resume);
     }
     void CompleteClose() {
+        if(desktopScene!=null)desktopScene.Transition(0,reducedMotion?0:(int)MotionMilliseconds(state.MotionDuration,true));
         int generation=Volatile.Read(ref closeGeneration);
         if(generation==completedCloseGeneration)return;
         completedCloseGeneration=generation;
@@ -909,7 +915,7 @@ partial class Overview : Form {
         exitWindow=null;exitSearchBounds=Rectangle.Empty;
         if(next!=null)next();else if(restorePrevious&&Native.IsWindow(previous))Native.SetForegroundWindow(previous);
     }
-    public void Abort() {if(shuttingDown||IsDisposed)return;closing=true;HideSpotlight();ReleaseOwnPointerCapture();StopFocusHandoff();folderDelay.Stop();folderTimeout.Stop();folderGeneration++;folderReplyId=0;openFolderWhenReady=localFolderPending=indexFolderPending=false;windowWatcher.Stop();StopMotion();Hide();ReleaseThumbnails();rendering=false;closing=false;openingMotion=false;}
+    public void Abort() {if(shuttingDown||IsDisposed)return;if(desktopScene!=null)desktopScene.Transition(0,reducedMotion?0:160);closing=true;HideSpotlight();ReleaseOwnPointerCapture();StopFocusHandoff();folderDelay.Stop();folderTimeout.Stop();folderGeneration++;folderReplyId=0;openFolderWhenReady=localFolderPending=indexFolderPending=false;windowWatcher.Stop();StopMotion();Hide();ReleaseThumbnails();rendering=false;closing=false;openingMotion=false;}
     void ReleaseThumbnails() {ReleaseRoundedPreviews();foreach(var w in windows)if(w.Thumbnail!=IntPtr.Zero){Native.DwmUnregisterThumbnail(w.Thumbnail);w.Thumbnail=IntPtr.Zero;}}
     static int Score(string label,string query) {
         return SearchRank.Match(label,query);
@@ -1480,6 +1486,7 @@ partial class Overview : Form {
     protected override void Dispose(bool disposing) {
         if(disposing&&!shuttingDown) {
             shuttingDown=true;folderGeneration++;folderReplyId=0;
+            if(desktopScene!=null){desktopScene.Dispose();desktopScene=null;}
             StopFocusHandoff();foreach(var timer in new[]{windowWatcher,folderDelay,folderTimeout,appRefreshDelay,focusSettleTimer}){timer.Stop();timer.Dispose();}
             foreach(var watcher in appWatchers)watcher.Dispose();appWatchers.Clear();
             DisposeSpotlight();StopMotion();ReleaseThumbnails();foreach(var badge in previewBadges.Values)badge.Close();previewBadges.Clear();
@@ -1560,10 +1567,13 @@ static class Program {
             Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
             var form=new Overview();IntPtr handle=form.Handle;
             Native.Log("WPF rendering tier="+(System.Windows.Media.RenderCapability.Tier>>16)+", process mode="+System.Windows.Media.RenderOptions.ProcessRenderMode+"; DWM previews and Windows Composition glass enabled where available");
+            using(var ready=new EventWaitHandle(false,EventResetMode.ManualReset,"Local\\Clean11OverviewReady"))
             using(var superKey=new SuperKeyDispatcher(handle)) {
+            ready.Reset();
             var server=new Thread(()=> {while(true)try {using(var pipe=new NamedPipeServerStream(pipeName,PipeDirection.In,1)){pipe.WaitForConnection();int action=pipe.ReadByte();bool transition=action==1&&form.TransitionActive;int closeSequence=form.CloseSequence;Native.Log("Pipe action received="+action+", transition-at-receipt="+transition+", close-sequence="+closeSequence);if(action==1){form.BeginInvoke((Action)(()=>{bool current=Overview.IsToggleSignalCurrent(transition,closeSequence,form.TransitionActive,form.CloseSequence);if(!current){Native.Log("Queued Super toggle discarded because the overview state changed before dispatch");return;}form.Toggle();}));}else if(action==2)form.BeginInvoke((Action)form.Abort);else if(action==3)form.BeginInvoke((Action)(()=>{form.Abort();Application.ExitThread();}));}}catch{Thread.Sleep(200);}});
             server.IsBackground=true;server.Start();
             Application.ThreadException+=(s,e)=> {Native.Log("UI error: "+e.Exception);form.Abort();};
+            form.BeginInvoke((Action)(()=>{ready.Set();Native.Log("Overview startup ready; hotkey and message loop initialized");}));
             if(background)form.BeginInvoke((Action)form.WarmBackground);else form.BeginInvoke((Action)form.Toggle);
             Application.Run();return 0;
             }

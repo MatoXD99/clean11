@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -15,6 +17,23 @@ sealed class PreviewHost : Form {
     IntPtr wallpaper,wallpaperSource;
     Rectangle wallpaperDesktop,wallpaperSourceRect;
     int wallpaperRegistrations;
+    internal readonly List<MotionSurface> WidgetSurfaces=new List<MotionSurface>();
+    internal void PrepareWidgetPreviews(Rectangle desktop){
+        ReleaseWidgetPreviews();
+        // Keep fading cards in the overview's background layer. Promoting real
+        // widgets above apps would break their desktop stacking behavior.
+        Native.EnumWindows((window,data)=>{
+            if(!Native.IsWindowVisible(window))return true;
+            if((Native.GetWindowLongPtr(window,-20).ToInt64()&0x80)==0)return true;
+            uint pid;Native.GetWindowThreadProcessId(window,out pid);
+            try{using(var process=Process.GetProcessById((int)pid))if(!process.ProcessName.Equals("Clean11.Widgets",StringComparison.OrdinalIgnoreCase))return true;}catch{return true;}
+            var bounds=Native.Bounds(window);if(!bounds.IntersectsWith(desktop)||bounds.Width<20||bounds.Height<20)return true;
+            IntPtr thumbnail;if(Native.DwmRegisterThumbnail(Handle,window,out thumbnail)!=0||thumbnail==IntPtr.Zero)return true;
+            bounds.Offset(-desktop.Left,-desktop.Top);WidgetSurfaces.Add(new MotionSurface{Thumbnail=thumbnail,To=bounds,DesktopWidget=true});return true;
+        },IntPtr.Zero);
+    }
+    internal void HideWidgetPreviews(){foreach(var surface in WidgetSurfaces){var hidden=new Native.Props{Flags=8,Visible=false};Native.DwmUpdateThumbnailProperties(surface.Thumbnail,ref hidden);}}
+    void ReleaseWidgetPreviews(){foreach(var surface in WidgetSurfaces)Native.DwmUnregisterThumbnail(surface.Thumbnail);WidgetSurfaces.Clear();}
     Image fallback;
     internal bool LiveWallpaper {get{return wallpaper!=IntPtr.Zero;}}
     internal IntPtr WallpaperThumbnail {get{return wallpaper;}}
@@ -92,6 +111,6 @@ sealed class PreviewHost : Form {
         e.Graphics.DrawImage(fallback,new Rectangle((ClientSize.Width-width)/2,(ClientSize.Height-height)/2,width,height));
     }
     internal void ReleaseWallpaper(){if(wallpaper!=IntPtr.Zero){Native.DwmUnregisterThumbnail(wallpaper);wallpaper=IntPtr.Zero;}wallpaperSource=IntPtr.Zero;wallpaperDesktop=Rectangle.Empty;wallpaperSourceRect=Rectangle.Empty;}
-    internal void HideRendering(){Hide();ReleaseWallpaper();}
-    protected override void Dispose(bool disposing){if(disposing){ReleaseWallpaper();if(fallback!=null){fallback.Dispose();fallback=null;}}base.Dispose(disposing);}
+    internal void HideRendering(){Hide();ReleaseWidgetPreviews();ReleaseWallpaper();}
+    protected override void Dispose(bool disposing){if(disposing){ReleaseWidgetPreviews();ReleaseWallpaper();if(fallback!=null){fallback.Dispose();fallback=null;}}base.Dispose(disposing);}
 }

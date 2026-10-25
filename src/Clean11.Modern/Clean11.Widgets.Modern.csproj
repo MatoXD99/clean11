@@ -8,7 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Clean11.Dock/*.cs"/>
-    <Compile Include="../Clean11.Overview/Clean11Paths.cs;../Clean11.Overview/Clean11Fluent.cs;../Clean11.Overview/ActivityTheme.cs;../Clean11.Overview/OverviewPreferences.cs;../Clean11.Overview/FrostedMaterial.cs;../Clean11.Overview/DockBackdrop.cs;../Clean11.Overview/DockComposition.cs"/><Compile Include="JsonCompatibility.cs"/>
+    <Compile Include="../Clean11.Launcher/StartupRegistration.cs"/>
+    <Compile Include="../Clean11.Overview/Clean11Paths.cs;../Clean11.Overview/OverviewScene.cs;../Clean11.Overview/Clean11Fluent.cs;../Clean11.Overview/ActivityTheme.cs;../Clean11.Overview/OverviewPreferences.cs;../Clean11.Overview/FrostedMaterial.cs;../Clean11.Overview/DockBackdrop.cs;../Clean11.Overview/DockComposition.cs"/><Compile Include="JsonCompatibility.cs"/>
     <PackageReference Include="WPF-UI" Version="4.3.0"/>
     <None Include="../Clean11.Overview/ActivitiesTheme.json" Link="ActivitiesTheme.json" CopyToOutputDirectory="PreserveNewest"/>
     <None Include="../Clean11.Dock/Tray/style.css" Link="tray.css" CopyToOutputDirectory="PreserveNewest"/>

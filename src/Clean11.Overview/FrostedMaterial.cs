@@ -99,6 +99,21 @@ static class FrostedMaterial {
         var result=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);result.Render(blur);result.Freeze();return result;
     }
     internal static void Position(ImageBrush brush,Drawing.Rectangle bounds,Drawing.Rectangle screen){if(brush==null||screen.Width<=0||screen.Height<=0)return;brush.Viewbox=new Rect((bounds.Left-screen.Left)/(double)screen.Width,(bounds.Top-screen.Top)/(double)screen.Height,bounds.Width/(double)screen.Width,bounds.Height/(double)screen.Height);}
+    // Map the actual painted visual to screen pixels. Its bounds may be inset
+    // from the owning HWND, and WPF's global DIP coordinates can differ from
+    // native pixels on mixed-DPI or offset monitors.
+    internal static Drawing.Rectangle BoundsOnScreen(FrameworkElement surface){
+        if(surface==null)return Drawing.Rectangle.Empty;
+        try{
+            var size=surface.RenderSize;
+            if(size.Width<=0||size.Height<=0)return Drawing.Rectangle.Empty;
+            var topLeft=surface.PointToScreen(new Point(0,0));
+            var bottomRight=surface.PointToScreen(new Point(size.Width,size.Height));
+            int left=(int)Math.Round(topLeft.X),top=(int)Math.Round(topLeft.Y);
+            int right=(int)Math.Round(bottomRight.X),bottom=(int)Math.Round(bottomRight.Y);
+            return Drawing.Rectangle.FromLTRB(left,top,right,bottom);
+        }catch(InvalidOperationException){return Drawing.Rectangle.Empty;}
+    }
     static volatile bool systemTransparency=true;
     static FrostedMaterial(){
         RefreshSystemTransparency();

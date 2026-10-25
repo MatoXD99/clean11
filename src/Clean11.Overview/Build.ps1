@@ -2,7 +2,7 @@ param([ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version='0.1.0')
 $ErrorActionPreference = 'Stop'
 $compiler = Join-Path ([Environment]::GetFolderPath('Windows')) 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $framework = Split-Path $compiler
-$sources = @('ActivitiesOverview.cs','Clean11Paths.cs','OverviewPreferences.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PerformanceEvents.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs','DockBackdrop.cs','DockComposition.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
+$sources = @('ActivitiesOverview.cs','Clean11Paths.cs','OverviewScene.cs','OverviewPreferences.cs','SearchServices.cs','FlowScoring.cs','SuperKey.cs','FramePacer.cs','PerformanceEvents.cs','PreviewHost.cs','ProcessSnapshot.cs','WindowLayout.cs','SettingsCatalog.cs','SpotlightPanel.cs','SpotlightIntegration.cs','RoundedPreviews.cs','ActivityTheme.cs','FrostedMaterial.cs','OverviewBadge.cs','Clean11Fluent.cs','DockBackdrop.cs','DockComposition.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
 $libraries = @(
  'WPF-UI.4.3.0/lib/net472/Wpf.Ui.dll',
  'WPF-UI.Abstractions.4.3.0/lib/net472/Wpf.Ui.Abstractions.dll',

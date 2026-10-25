@@ -97,10 +97,12 @@ The MSI installs overview/search, the dock with its integrated top bar and devic
 Download the unsigned preview MSI from [GitHub Releases](https://github.com/MatoXD99/clean11/releases). Clean Sandbox lifecycle testing is still pending. To build an installer from source:
 
 ```powershell
-.\installer\Build.ps1 -Version 0.3.0
+.\installer\Build.ps1 -Version 0.3.2
 ```
 
-The result is `artifacts/installer/Clean11-0.3.0-x64.msi`. Double-click it to install. Open Clean11 from Start; first launch opens Settings so you can choose taskbar integration. Uninstall through Windows **Installed apps**; personal preferences are retained.
+The result is `artifacts/installer/Clean11-0.3.2-x64.msi`. Double-click it to install. Open Clean11 from Start; first launch opens Settings so you can choose taskbar integration. Uninstall through Windows **Installed apps**; personal preferences are retained.
+
+**v0.3.2 Alpha** adds per-user logon-task startup, native taskbar reveal protection, floating top-bar islands and coordinated desktop animations. Enable **System > Replace the bottom bar** to hide the native taskbar. See [release notes](docs/releases/0.3.2.md) and [startup diagnostics](docs/STARTUP.md).
 
 See [installer validation and Windows Sandbox](docs/BUILDING.md#installer-and-windows-sandbox) for the test workflow and current release gates. The preview package is unsigned and has not yet passed a clean Sandbox install/repair/upgrade/uninstall run.
 

@@ -45,7 +45,7 @@ The installed app continues to use the established .NET Framework build. Promoti
 
 ## Installer and Windows Sandbox
 
-`installer/Build.ps1 -Version 0.3.0` builds the current .NET Framework application and a per-user x64 MSI using Windows Installer's native database API, `makecab.exe`, and the Windows C# compiler. No third-party installer authoring tool is required. Dependency restore needs internet access on the build machine. End users do not need a compiler, NuGet, or the .NET 10 SDK.
+`installer/Build.ps1 -Version 0.3.2` builds the current .NET Framework application and a per-user x64 MSI using Windows Installer's native database API, `makecab.exe`, and the Windows C# compiler. No third-party installer authoring tool is required. Dependency restore needs internet access on the build machine. End users do not need a compiler, NuGet, or the .NET 10 SDK.
 
 The MSI requires Windows 11 and .NET Framework 4.8 or later, installs beneath the current user's `LocalAppData/Programs/Clean11`, and includes only an explicit set of binaries, theme configuration, and license notices. Logs, personal settings, keys, and development files are excluded. `Clean11.exe` starts both modules; sign-in startup uses this same launcher. Modules resolve their siblings in the package before considering legacy development locations.
 
@@ -56,8 +56,8 @@ Setup provides Start-menu shortcuts, standard Installed apps registration, repai
 ### Local validation
 
 ```powershell
-.\installer\Build.ps1 -Version 0.3.0
-.\installer\Verify-Package.ps1 -Package artifacts/installer/Clean11-0.3.0-x64.msi
+.\installer\Build.ps1 -Version 0.3.2
+.\installer\Verify-Package.ps1 -Package artifacts/installer/Clean11-0.3.2-x64.msi
 ```
 
 The verifier checks database structure, embedded cabinet, directory costing, and prerequisite detection without installing. Administrative extraction with `msiexec /a` was also exercised, and all 28 extracted payload files matched their manifest hashes. The packaged overview logic/graphics checks and launcher path check passed. The welcome screen and cancellation were inspected on the host; installation was not performed on the development account.

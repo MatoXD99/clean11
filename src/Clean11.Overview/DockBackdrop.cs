@@ -26,6 +26,19 @@ sealed class DockBackdrop : Window {
         Background=material.Update(width,height,dpi,glass,strength);
     }
     internal void SetMotionOpacity(double value){material.SetOpacity((float)value);}
+    internal void MoveWithHost(IntPtr host,double hostLeft,double hostTop,double glassLeft,double glassTop,double dpi){
+        // Set the final native positions together. WPF's Window geometry can be
+        // constrained at a monitor edge; a scene slide must continue offscreen.
+        int x=(int)Math.Round(hostLeft*dpi),y=(int)Math.Round(hostTop*dpi);
+        int gx=(int)Math.Round(glassLeft*dpi),gy=(int)Math.Round(glassTop*dpi);
+        IntPtr batch=GlassNative.BeginDeferWindowPos(2);
+        if(batch!=IntPtr.Zero)batch=GlassNative.DeferWindowPos(batch,host,IntPtr.Zero,x,y,0,0,0x215);
+        if(batch!=IntPtr.Zero)batch=GlassNative.DeferWindowPos(batch,handle,host,gx,gy,0,0,0x211);
+        if(batch==IntPtr.Zero||!GlassNative.EndDeferWindowPos(batch)){
+            GlassNative.SetWindowPos(host,IntPtr.Zero,x,y,0,0,0x215);
+            GlassNative.SetWindowPos(handle,host,gx,gy,0,0,0x211);
+        }
+    }
     internal void FollowHostPosition(IntPtr host,IntPtr position){
         if(!IsVisible||handle==IntPtr.Zero||position==IntPtr.Zero)return;
         var next=(GlassNative.WindowPosition)Marshal.PtrToStructure(position,typeof(GlassNative.WindowPosition));

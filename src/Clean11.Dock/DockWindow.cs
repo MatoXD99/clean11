@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -31,16 +31,17 @@ sealed class DockWindow : Window {
     readonly DockAppBar appbar=new DockAppBar();readonly DispatcherTimer pulse=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(150)};
     readonly DispatcherTimer refresh=new DispatcherTimer{Interval=TimeSpan.FromSeconds(1.5)},hoverDelay=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)};
     DockBackdrop glassBackdrop;
+    OverviewSceneReceiver overviewScene;double overviewProgress,startupProgress=1;StartupSceneMotion startupMotion;readonly bool startupEntrance;
     TopBarWindow topBar;
     readonly Canvas strip=new Canvas();readonly Border backdrop;readonly List<DockTile> tiles=new List<DockTile>();
     readonly BlockingCollection<string> iconRequests=new BlockingCollection<string>();readonly Dictionary<string,BitmapSource> icons=new Dictionary<string,BitmapSource>(StringComparer.OrdinalIgnoreCase);readonly HashSet<string> pending=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    readonly Forms.NotifyIcon notification;List<DockAppWindow> windows=new List<DockAppWindow>();List<DockGroup> groups=new List<DockGroup>();
+    readonly Forms.NotifyIcon notification;readonly TrayAppearance trayAppearance;List<DockAppWindow> windows=new List<DockAppWindow>();List<DockGroup> groups=new List<DockGroup>();
     string signature="";bool shutdownRequested,enumerating,disposed,showing=true,moving,dragging,menuOpen;DateTime outsideSince=DateTime.MinValue,lastLease=DateTime.MinValue;IntPtr hwnd;double dpi=1,slot,baseWidth,dividerX;Border divider;int hoverIndex=-1;DockFlyout flyout;Window settings;
     Point dragStart;DockTile dragTile;Stopwatch motion=new Stopwatch();double lastFrame;
     TimeSpan lastRenderingTime=TimeSpan.MinValue;
     internal Forms.Screen Screen{get{return Forms.Screen.AllScreens.FirstOrDefault(s=>s.DeviceName==State.Monitor)??Forms.Screen.PrimaryScreen;}}
-    internal DockWindow(DockState state){
-        State=state;Clean11Fluent.Apply(this);Title="Clean11 Dock";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;Background=Brushes.Transparent;ShowInTaskbar=Environment.CommandLine.Contains("--inspect-ui");ShowActivated=false;Topmost=true;FontFamily=new FontFamily("Segoe UI Variable, Segoe UI");Foreground=ActivityTheme.Brush("Text","#F5F5F5");
+    internal DockWindow(DockState state,bool animateStartup){
+        State=state;trayAppearance=new TrayAppearance(this);startupEntrance=animateStartup&&!state.ReducedMotion&&!OverviewPreferences.Load().ReducedMotion;startupProgress=startupEntrance?0:1;Clean11Fluent.Apply(this);Title="Clean11 Dock";WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;Background=Brushes.Transparent;ShowInTaskbar=Environment.CommandLine.Contains("--inspect-ui");ShowActivated=false;Topmost=true;FontFamily=new FontFamily("Segoe UI Variable, Segoe UI");Foreground=ActivityTheme.Brush("Text","#F5F5F5");
         var root=new Grid();backdrop=new Border{Background=ActivityTheme.Brush("DockSurface","#ED202329"),BorderBrush=ActivityTheme.Brush("Border","#505050"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(ActivityTheme.PanelRadius),VerticalAlignment=VerticalAlignment.Bottom,Margin=new Thickness(36,0,36,0)};root.Children.Add(backdrop);root.Children.Add(strip);Content=root;AllowDrop=true;
         SourceInitialized+=(s,e)=>{hwnd=new WindowInteropHelper(this).Handle;if(!Environment.CommandLine.Contains("--inspect-ui"))DockNative.NoActivate(this);dpi=DockNative.GetDpiForWindow(hwnd)/96.0;HwndSource.FromHwnd(hwnd).AddHook(Messages);Rebuild();};
         MouseMove+=(s,e)=>Hover(e.GetPosition(strip));MouseLeave+=(s,e)=>{
@@ -64,7 +65,9 @@ sealed class DockWindow : Window {
         notification=new Forms.NotifyIcon{Text="Clean11 Dock",Icon=System.Drawing.SystemIcons.Application,Visible=true};notification.MouseClick+=(s,e)=>{if(e.Button==Forms.MouseButtons.Left)ShowSettings();else OpenMenu(SettingsMenu(),this);};
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=DisplayChanged;
         Closing+=(s,e)=>{if(!disposed&&!shutdownRequested){e.Cancel=true;RequestShutdown();}};
-        Show();topBar=new TopBarWindow(this);topBar.ApplySettings();pulse.Start();refresh.Start();RefreshWindows();DockLog.Write("Dock window ready without activation; "+State.Pins.Count+" pinned items.");
+        Show();topBar=new TopBarWindow(this,startupEntrance);topBar.ApplySettings();pulse.Start();refresh.Start();RefreshWindows();DockLog.Write("Dock window ready without activation; "+State.Pins.Count+" pinned items.");
+        if(startupEntrance){startupMotion=new StartupSceneMotion(SetStartupProgress,()=>startupMotion=null);startupMotion.Start();}
+        overviewScene=new OverviewSceneReceiver(SetOverviewProgress,()=>State.ReducedMotion||OverviewPreferences.Load().ReducedMotion,active=>{if(active){CloseFlyout();DockNative.SetWindowPos(hwnd,new IntPtr(-1),0,0,0,0,0x213);if(topBar!=null)topBar.PrepareOverviewScene();}});
     }
     IntPtr Messages(IntPtr h,int message,IntPtr w,IntPtr l,ref bool handled){if(message==0x02E0){dpi=(w.ToInt64()&0xffff)/96.0;Dispatcher.BeginInvoke((Action)Rebuild);}return IntPtr.Zero;}
     void DisplayChanged(object s,EventArgs e){try{Dispatcher.BeginInvoke((Action)(()=>{Lease.Release();Rebuild();}));}catch{}}
@@ -127,13 +130,26 @@ sealed class DockWindow : Window {
         if(!pendingFrame)StopMotion();
     }
     void StopMotion(){if(moving)CompositionTarget.Rendering-=Animate;moving=false;}
-    void Position(){var b=Screen.Bounds;Left=(b.Left+(b.Width-Width*dpi)/2)/dpi;Top=(b.Bottom-Height*dpi-10*dpi)/dpi;}
-    readonly TrayAppearance trayAppearance=new TrayAppearance();
+    void Position(){var b=Screen.Bounds;Left=(b.Left+(b.Width-Width*dpi)/2)/dpi;Top=(b.Bottom-Height*dpi-10*dpi)/dpi+(Height+20)*overviewProgress+(Height+20)*(1-startupProgress);}
+    void SetStartupProgress(double progress){startupProgress=Math.Max(0,Math.Min(1,progress));Position();RefreshGlass();if(topBar!=null)topBar.SetStartupProgress(startupProgress);}
+    void SetOverviewProgress(double progress){
+        if(disposed)return;
+        progress=Math.Max(0,Math.Min(1,progress));
+        if(overviewProgress==0&&progress>0){CloseFlyout();hoverDelay.Stop();StopMotion();BeginAnimation(OpacityProperty,null);}
+        overviewProgress=progress;Position();Opacity=showing&&progress<1?1:0;
+        bool input=showing&&progress==0;
+        IsHitTestVisible=input;
+        if(hwnd!=IntPtr.Zero){long style=DockNative.GetLong(hwnd,-20).ToInt64(),next=input?style&~0x20:style|0x20;if(next!=style)DockNative.SetLong(hwnd,-20,new IntPtr(next));}
+        if(glassBackdrop!=null){var p=OverviewPreferences.Appearance;glassBackdrop.Update(hwnd,Left+36,Top+Height-backdrop.Height,baseWidth,backdrop.Height,dpi,showing,FrostedMaterial.Enabled(p.Glass),p.Strength);glassBackdrop.SetMotionOpacity(progress<1?1:0);glassBackdrop.MoveWithHost(hwnd,Left,Top,Left+36,Top+Height-backdrop.Height,dpi);}
+        if(topBar!=null)topBar.SetOverviewProgress(progress);
+        if(progress==0)UpdateVisibility();
+    }
     void UpdateVisibility(){
         trayAppearance.Update();
         if(disposed||hwnd==IntPtr.Zero)return;var now=DateTime.UtcNow;var screen=Screen;
-        if((now-lastLease).TotalSeconds>1){Lease.Update(screen,State.TakeOver);appbar.Configure(screen,(int)((State.IconSize+42)*dpi),State.Visibility=="Always"&&!Lease.ExistingDock);lastLease=now;}
+        if((now-lastLease).TotalSeconds>1||(State.TakeOver&&Lease.PendingShell)){Lease.Update(screen,State.TakeOver);appbar.Configure(screen,(int)((State.IconSize+42)*dpi),State.Visibility=="Always"&&!Lease.ExistingDock);lastLease=now;}
         if(State.TakeOver)Lease.Enforce();
+        if(overviewProgress>0)return;
         bool fullscreen=DockNative.Fullscreen(screen,hwnd);DockNative.Point pointer;DockNative.GetCursorPos(out pointer);DockNative.Rect bounds;DockNative.GetWindowRect(hwnd,out bounds);bool inside=pointer.X>=bounds.Left&&pointer.X<=bounds.Right&&pointer.Y>=bounds.Top&&pointer.Y<=screen.Bounds.Bottom;
         bool inFlyout=flyout!=null&&flyout.Contains(pointer.X,pointer.Y);bool edge=pointer.Y>=screen.Bounds.Bottom-3&&pointer.X>=bounds.Left&&pointer.X<=bounds.Right;
         if(flyout!=null&&!inside&&!inFlyout&&!menuOpen){if(outsideSince==DateTime.MinValue)outsideSince=now;if((now-outsideSince).TotalMilliseconds>400)CloseFlyout();}else outsideSince=DateTime.MinValue;
@@ -153,6 +169,37 @@ sealed class DockWindow : Window {
     void ShowWindows(DockTile tile){if(flyout!=null&&flyout.GroupKey==tile.Group.Key)return;CloseFlyout();if(tile.Group.Windows.Count==0)return;flyout=new DockFlyout(this,tile.Group,TileAnchor(tile));flyout.Show();}
     Point TileAnchor(DockTile tile){DockNative.Rect r;DockNative.GetWindowRect(hwnd,out r);return new Point(r.Left+(tile.Center+tile.Shift.X)*dpi,r.Bottom-backdrop.Height*dpi-8);}
     Point FolderAnchor(){DockNative.Rect r;DockNative.GetWindowRect(hwnd,out r);return new Point(r.Left+r.Width/2,r.Bottom-backdrop.Height*dpi-8);}
+    internal DockNative.Rect PositionBackgroundAppsPopup(IntPtr popup,DockNative.Rect current){
+        DockNative.Rect own;if(hwnd==IntPtr.Zero||!DockNative.GetWindowRect(hwnd,out own)||current.Width<=0||current.Height<=0)return current;
+        var tray=tiles.FirstOrDefault(t=>Object.Equals(t.Button.ToolTip,"Background apps"));
+        double scale=Math.Max(1,dpi);int gap=(int)Math.Round(12*scale),margin=(int)Math.Round(8*scale);
+        int surfaceTop=own.Bottom-(int)Math.Round(backdrop.Height*scale);
+        int anchorX=tray==null?own.Right-(int)Math.Round(36*scale):own.Left+(int)Math.Round((tray.Center+tray.Shift.X)*scale);
+        int left=anchorX+(int)Math.Round((State.IconSize/2.0+12)*scale)-current.Width;
+        var work=Screen.WorkingArea;int minLeft=work.Left+margin,maxLeft=work.Right-current.Width-margin;
+        if(maxLeft>=minLeft)left=Math.Max(minLeft,Math.Min(maxLeft,left));
+        int top=surfaceTop-current.Height-gap;
+        int minTop=work.Top+margin,maxTop=work.Bottom-current.Height-margin;
+        if(maxTop>=minTop)top=Math.Max(minTop,Math.Min(maxTop,top));
+        // A tall tray list can exceed the space above a small display. Put it
+        // beside the dock in that case, keeping the two surfaces separate.
+        if(top+current.Height+gap>surfaceTop){
+            int dockLeft=own.Left+(int)Math.Round(36*scale),dockRight=own.Right-(int)Math.Round(36*scale);
+            int leftSpace=dockLeft-work.Left,rightSpace=work.Right-dockRight;
+            if(Math.Max(leftSpace,rightSpace)>=current.Width+gap){
+                left=rightSpace>=leftSpace?dockRight+gap:dockLeft-current.Width-gap;
+                left=Math.Max(minLeft,Math.Min(maxLeft,left));
+                top=Math.Max(minTop,Math.Min(maxTop,surfaceTop-current.Height));
+            }
+        }
+        if(Math.Abs(current.Left-left)>1||Math.Abs(current.Top-top)>1){
+            // Preserve activation and z-order: this is a positioning correction,
+            // not a new foreground window.
+            DockNative.SetWindowPos(popup,IntPtr.Zero,left,top,current.Width,current.Height,0x0214);
+            DockNative.Rect moved;if(DockNative.GetWindowRect(popup,out moved))return moved;
+        }
+        return current;
+    }
     void ShowFolder(string path){CloseFlyout();flyout=new DockFlyout(this,path,FolderAnchor());flyout.Show();}
     internal void OpenMenu(ContextMenu menu,FrameworkElement target){Clean11Fluent.Menu(menu);menu.PlacementTarget=target;menu.Placement=PlacementMode.MousePoint;menu.Opened+=(s,e)=>{menuOpen=true;hoverDelay.Stop();};menu.Closed+=(s,e)=>menuOpen=false;menu.IsOpen=true;}
     MenuItem Item(string label,Action action){var item=new MenuItem{Header=label};item.Click+=(s,e)=>action();return item;}
@@ -191,11 +238,11 @@ sealed class DockWindow : Window {
         backdrop.Background=new SolidColorBrush(Color.FromArgb(1,0,0,0));backdrop.BorderThickness=new Thickness(1);backdrop.CornerRadius=new CornerRadius(ActivityTheme.GlassRadius);backdrop.BorderBrush=FrostedMaterial.Edge();
         foreach(var tile in tiles){if(tile.Group==null){var frame=tile.Icon as Border;if(frame!=null){var glyph=frame.Child as Ui.SymbolIcon;if(glyph!=null)glyph.Foreground=new SolidColorBrush(FrostedMaterial.Ink(true));}}}
     }
-    internal void ApplySettings(){CloseFlyout();State.Save();Lease.Release();lastLease=DateTime.MinValue;Rebuild();if(topBar!=null)topBar.ApplySettings();}
+    internal void ApplySettings(){CloseFlyout();State.Save();lastLease=DateTime.MinValue;Rebuild();if(topBar!=null)topBar.ApplySettings();}
     internal void RequestShutdown(){
         if(shutdownRequested)return;
         if(settings!=null){settings.Close();if(settings!=null&&settings.IsVisible)return;}
         shutdownRequested=true;Application.Current.Shutdown();
     }
-    internal void DisposeDock(){trayAppearance.Dispose();if(disposed)return;disposed=true;if(topBar!=null){topBar.Close();topBar=null;}if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
+    internal void DisposeDock(){trayAppearance.Dispose();if(disposed)return;disposed=true;if(startupMotion!=null){startupMotion.Dispose();startupMotion=null;}if(overviewScene!=null)overviewScene.Dispose();if(topBar!=null){topBar.Close();topBar=null;}if(glassBackdrop!=null){glassBackdrop.Close();glassBackdrop=null;}pulse.Stop();refresh.Stop();hoverDelay.Stop();StopMotion();CloseFlyout();if(settings!=null)settings.Close();notification.Visible=false;notification.Dispose();iconRequests.CompleteAdding();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplayChanged;appbar.Dispose();Lease.Release();DockLog.Write("Dock exited; previous bars restored.");}
 }

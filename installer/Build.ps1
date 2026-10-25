@@ -16,7 +16,7 @@ New-Item -ItemType Directory -Force "$stage/Overview","$stage/Dock","$stage/lice
 $launcherSource=(Resolve-Path (Join-Path $repo 'src/Clean11.Launcher/Program.cs')).Path
 $versionSource=Join-Path $out 'LauncherVersion.cs'
 [IO.File]::WriteAllText($versionSource,('[assembly:System.Reflection.AssemblyVersion("{0}.0")][assembly:System.Reflection.AssemblyFileVersion("{0}.0")][assembly:System.Reflection.AssemblyCompany("Clean11 Contributors")][assembly:System.Reflection.AssemblyProduct("Clean11")]' -f $Version))
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ "/out:$stage/Clean11.exe" /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll $launcherSource $versionSource
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ "/out:$stage/Clean11.exe" /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll /r:System.Core.dll /r:Microsoft.CSharp.dll $launcherSource (Join-Path $repo 'src/Clean11.Launcher/StartupRegistration.cs') $versionSource
 if($LASTEXITCODE -ne 0){throw 'Launcher build failed.'}
 $libraries=@('Wpf.Ui.dll','Wpf.Ui.Abstractions.dll','System.Memory.dll','System.Buffers.dll','System.Numerics.Vectors.dll','System.Runtime.CompilerServices.Unsafe.dll')
 foreach($module in @('Overview','Dock')){

@@ -1,5 +1,9 @@
 # Clean11 Dock
 
+Sign-in startup now uses a per-user Task Scheduler task. See [startup behavior,
+diagnostics and validation](STARTUP.md); this replaces the earlier Run-entry
+and separate Startup-shortcut behavior described in historical notes below.
+
 The first native dock implementation uses C#, WPF UI 4.3.0, and the shared Clean11 palette. It runs independently of Overview and requires Windows 11 x64 with .NET Framework 4.8.
 
 ## Included
@@ -18,6 +22,10 @@ The first native dock implementation uses C#, WPF UI 4.3.0, and the shared Clean
 ## Integration and recovery
 
 Clean11 temporarily hides the existing bottom dock/taskbar on the selected display. It does not edit Seelen's configuration or change the top bar. Original window visibility is recorded locally before hiding; normal exit and a separate watchdog restore it. A restarted shell is rediscovered automatically.
+
+When **Replace the bottom bar** is enabled, Clean11 also leases Windows' global taskbar auto-hide policy through the native appbar API. Its edge-reveal controller is suspended while takeover is active, with the previous auto-hide preference saved before the change and restored on exit, disabling takeover, or watchdog recovery. On other displays the native taskbar may therefore remain visible rather than auto-hide while takeover is active. Clean11's own Auto-hide/Intelligent/Always settings are independent. The explicit 15-second native-tray reveal remains available.
+
+Takeover tracks native bars even when they are initially hidden, discards stale Explorer handles, and listens for `TaskbarCreated` broadcasts. The work-area reservation re-registers after Explorer restarts. Sign-in startup no longer blocks while waiting for Explorer: Clean11 opens its UI immediately and retries takeover on its existing 150 ms pulse until the shell is ready. If takeover is enabled, an existing recovery journal is adopted so the native taskbar is not restored and hidden again during sign-in. If takeover is disabled, recovery waits for Explorer in the background. A full PC reboot was not exercised for this update.
 
 When Seelen is running, its existing work-area reservation remains in place. A standalone always-visible Clean11 dock registers its own appbar reservation. This compatibility stage can therefore retain an empty bottom margin with Seelen, even in auto-hide mode.
 
@@ -98,4 +106,4 @@ When **Replace the bottom bar** is enabled, the dock watches native show, locati
 
 The hooks are removed before releasing the lease, so disabling replacement or exiting can restore the recorded visibility. Explicit temporary access to the native notification area retains its 15-second exemption. This applies to the dock's selected monitor.
 
-Local validation: three forced Explorer taskbar reveal requests ended with the taskbar hidden; one observed reveal was suppressed in about 10 ms. Native taskbar restoration on graceful exit and suppression on relaunch passed. A physical Windows-key/edge-hover interaction was not automated for this check.
+Local validation: three forced Explorer taskbar reveal requests ended with the taskbar hidden; one observed reveal was suppressed in about 10 ms. Native taskbar restoration on graceful exit and suppression on relaunch passed. The current development install also launched the dock, top bar, Overview, and widgets from the unified sign-in path in about one second without restarting Windows. A physical Windows-key/edge-hover interaction and a full PC reboot were not exercised for this check.

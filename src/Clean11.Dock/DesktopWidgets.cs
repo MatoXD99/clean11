@@ -50,10 +50,10 @@ sealed class DesktopWidgetStore {
 
 static class DesktopWidgetBridge {
     internal static string Executable {get{return Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Clean11.Widgets.exe");}}
-    internal static void Start(bool gallery){
+    internal static void Start(bool gallery,bool startup=false){
         if(gallery){OpenSettings();return;}
         if(!File.Exists(Executable)){DockLog.Write("Desktop widgets executable is not installed.");return;}
-        Process.Start(new ProcessStartInfo(Executable,"--background --parent "+Process.GetCurrentProcess().Id){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=AppDomain.CurrentDomain.BaseDirectory});
+        Process.Start(new ProcessStartInfo(Executable,"--background "+(startup?"--startup ":"")+"--parent "+Process.GetCurrentProcess().Id){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=AppDomain.CurrentDomain.BaseDirectory});
     }
     internal static void OpenSettings(){var path=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Clean11.Dock.exe");if(File.Exists(path))Process.Start(new ProcessStartInfo(path,"--widgets"){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=AppDomain.CurrentDomain.BaseDirectory});}
     internal static void Stop(){try{using(var stop=EventWaitHandle.OpenExisting("Local\\Clean11WidgetsStop"))stop.Set();}catch(WaitHandleCannotBeOpenedException){}}
@@ -98,14 +98,16 @@ sealed class DesktopWidgetHost : IDisposable {
     internal readonly List<DesktopWidgetWindow> Windows=new List<DesktopWidgetWindow>();
     internal bool Editing;internal string SaveError="";
     readonly DispatcherTimer saveTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(500)},tick=new DispatcherTimer{Interval=TimeSpan.FromSeconds(1)};
-    readonly WidgetControlServer controls;int seconds;bool dirty,disposed;readonly int parent;
-    internal DesktopWidgetHost(int owner){
-        parent=owner;Store=DesktopWidgetStore.Load();saveTimer.Tick+=(s,e)=>Flush();tick.Tick+=(s,e)=>Tick();
+    readonly WidgetControlServer controls;readonly int parent;int seconds;bool dirty,disposed;StartupSceneMotion startupMotion;double startupProgress=1;
+    internal DesktopWidgetHost(int owner,bool animateStartup){
+        parent=owner;Store=DesktopWidgetStore.Load();startupProgress=animateStartup&&!OverviewPreferences.Load().ReducedMotion?0:1;saveTimer.Tick+=(s,e)=>Flush();tick.Tick+=(s,e)=>Tick();
         foreach(var state in Store.Widgets.Where(x=>DesktopWidgetStore.Kinds.Contains(x.Kind)))Create(state);
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged+=DisplaysChanged;controls=new WidgetControlServer(this);tick.Start();Tick();Changed();
+        overviewScene=new OverviewSceneReceiver(SetOverviewProgress,()=>OverviewPreferences.Load().ReducedMotion);
+        if(startupProgress<1){startupMotion=new StartupSceneMotion(SetStartupProgress,()=>startupMotion=null,520);startupMotion.Start();}
     }
     void DisplaysChanged(object sender,EventArgs args){if(disposed)return;try{if(!Application.Current.Dispatcher.HasShutdownStarted)Application.Current.Dispatcher.BeginInvoke((Action)(()=>{if(!disposed)foreach(var window in Windows)window.Place();}));}catch(InvalidOperationException){}}
-    void Create(DesktopWidgetState state){var window=new DesktopWidgetWindow(this,state);Windows.Add(window);new WindowInteropHelper(window).EnsureHandle();window.Place();}
+    void Create(DesktopWidgetState state){var window=new DesktopWidgetWindow(this,state);Windows.Add(window);new WindowInteropHelper(window).EnsureHandle();window.Place();window.SetStartupProgress(startupProgress);window.SetOverviewProgress(overviewProgress);}
     internal void Add(string kind){if(!DesktopWidgetStore.Kinds.Contains(kind))return;var state=new DesktopWidgetState{Kind=kind,X=32+(Store.Widgets.Count%5)*32,Y=40+(Store.Widgets.Count%5)*32};Store.Widgets.Add(state);Create(state);Tick();Changed();}
     internal void Changed(){dirty=true;saveTimer.Stop();saveTimer.Start();}
     internal void Flush(){saveTimer.Stop();if(!dirty)return;try{Store.Save();dirty=false;SaveError="";}catch(Exception error){SaveError="Could not save widgets. Check available disk space and folder access.";DockLog.Write("Widget save failed: "+error.GetType().Name);}}
@@ -113,15 +115,22 @@ sealed class DesktopWidgetHost : IDisposable {
     internal void SetEnabled(bool value){Store.Enabled=value;Changed();Tick();}
     internal void Toggle(DesktopWidgetState state){state.Visible=!state.Visible;Changed();Tick();}
     internal void Gallery(){DesktopWidgetBridge.OpenSettings();}
+    OverviewSceneReceiver overviewScene;double overviewProgress;
+    void SetOverviewProgress(double progress){overviewProgress=progress;foreach(var window in Windows)window.SetOverviewProgress(progress);}
+    void SetStartupProgress(double progress){startupProgress=Math.Max(0,Math.Min(1,progress));foreach(var window in Windows)window.SetStartupProgress(startupProgress);}
     void Tick(){
         if(disposed)return;
         if(parent>0){try{using(var process=Process.GetProcessById(parent)){if(process.HasExited){Application.Current.Shutdown();return;}}}catch(ArgumentException){Application.Current.Shutdown();return;}}
         seconds++;foreach(var window in Windows){bool show=Store.Enabled&&window.State.Visible&&!DockNative.Fullscreen(window.Screen,IntPtr.Zero);if(show&&!window.IsVisible){window.Show();window.Place();}else if(!show&&window.IsVisible)window.Hide();if(show)window.Tick(seconds%5==0);}
     }
-    public void Dispose(){if(disposed)return;disposed=true;tick.Stop();saveTimer.Stop();Flush();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplaysChanged;controls.Dispose();foreach(var window in Windows)window.Close();}
+    public void Dispose(){if(disposed)return;disposed=true;if(startupMotion!=null){startupMotion.Dispose();startupMotion=null;}if(overviewScene!=null)overviewScene.Dispose();tick.Stop();saveTimer.Stop();Flush();Microsoft.Win32.SystemEvents.DisplaySettingsChanged-=DisplaysChanged;controls.Dispose();foreach(var window in Windows)window.Close();}
 }
 
 sealed class DesktopWidgetWindow : Window {
+    double startupProgress=1,overviewProgress;
+    internal void SetOverviewProgress(double progress){overviewProgress=progress;ApplyMotionOpacity();if(progress>0&&ContextMenu!=null)ContextMenu.IsOpen=false;}
+    internal void SetStartupProgress(double progress){startupProgress=Math.Max(0,Math.Min(1,progress));ApplyMotionOpacity();}
+    void ApplyMotionOpacity(){Opacity=startupProgress*(1-overviewProgress);IsHitTestVisible=startupProgress>=1&&overviewProgress==0;}
     internal readonly DesktopWidgetState State;readonly DesktopWidgetHost host;
     readonly Border frame;readonly Grid body=new Grid();readonly StackPanel heading=new StackPanel();
     readonly TextBlock name;TextBlock time,date;TextBox note;IntPtr handle;double dpi=1;string materialKey="",clockKey="";DateTime month=DateTime.Today;DateTime renderedDate;
@@ -170,7 +179,7 @@ sealed class DesktopWidgetWindow : Window {
     internal void Place(){var work=Screen.WorkingArea;Left=work.Left/dpi+Math.Max(0,Math.Min(State.X,work.Width/dpi-Width));Top=work.Top/dpi+Math.Max(0,Math.Min(State.Y,work.Height/dpi-Height));Material();}
     void SavePosition(){var screen=Forms.Screen.FromHandle(handle);State.Monitor=screen.DeviceName;State.X=Left-screen.WorkingArea.Left/dpi;State.Y=Top-screen.WorkingArea.Top/dpi;host.Changed();}
     void Snap(){Left=Math.Round(Left/8)*8;Top=Math.Round(Top/8)*8;foreach(var other in host.Windows.Where(x=>x!=this&&x.IsVisible)){if(Math.Abs(Left-(other.Left+other.Width+16))<12)Left=other.Left+other.Width+16;if(Math.Abs(Top-other.Top)<12)Top=other.Top;}var work=Forms.Screen.FromHandle(handle).WorkingArea;Left=Math.Max(work.Left/dpi,Math.Min(Left,work.Right/dpi-Width));Top=Math.Max(work.Top/dpi,Math.Min(Top,work.Bottom/dpi-Height));Material();}
-    void Material(){if(handle==IntPtr.Zero)return;var p=OverviewPreferences.Appearance;string key=p.Glass+"|"+p.Strength+"|"+p.Radius+"|"+p.Light+"|"+Left+"|"+Top+"|"+Width+"|"+Height;if(key==materialKey)return;materialKey=key;Clean11Fluent.RefreshPalette(this);frame.BorderBrush=FrostedMaterial.Edge();var bounds=new System.Drawing.Rectangle((int)(Left*dpi),(int)(Top*dpi),(int)(Width*dpi),(int)(Height*dpi));frame.Background=FrostedMaterial.PanelBrush(bounds,Screen.Bounds,p.Glass);frame.Clip=new RectangleGeometry(new Rect(0,0,Width,Height),ActivityTheme.GlassRadius,ActivityTheme.GlassRadius);}
+    void Material(){if(handle==IntPtr.Zero)return;var p=OverviewPreferences.Appearance;var bounds=FrostedMaterial.BoundsOnScreen(frame);if(bounds.IsEmpty)return;var screen=Forms.Screen.FromPoint(new System.Drawing.Point(bounds.Left+bounds.Width/2,bounds.Top+bounds.Height/2));string key=p.Glass+"|"+p.Strength+"|"+p.Radius+"|"+p.Light+"|"+bounds+"|"+screen.Bounds;if(key==materialKey)return;materialKey=key;Clean11Fluent.RefreshPalette(this);frame.BorderBrush=FrostedMaterial.Edge();frame.Background=FrostedMaterial.PanelBrush(bounds,screen.Bounds,p.Glass);frame.Clip=new RectangleGeometry(new Rect(0,0,Width,Height),ActivityTheme.GlassRadius,ActivityTheme.GlassRadius);}
 }
 
 static class WidgetsProgram {
@@ -179,7 +188,7 @@ static class WidgetsProgram {
         try{if(args.Contains("--shutdown")){DesktopWidgetBridge.Stop();return 0;}bool created;using(var mutex=new Mutex(true,"Local\\Clean11.Widgets",out created)){
             if(!created){if(args.Contains("--gallery"))try{using(var signal=EventWaitHandle.OpenExisting("Local\\Clean11WidgetsGallery"))signal.Set();}catch(WaitHandleCannotBeOpenedException){}return 0;}
             Clean11Fluent.Ensure();var app=Application.Current;app.ShutdownMode=ShutdownMode.OnExplicitShutdown;int parent=0;int pos=Array.IndexOf(args,"--parent");if(pos>=0&&pos+1<args.Length)Int32.TryParse(args[pos+1],out parent);
-            using(var host=new DesktopWidgetHost(parent))using(var stop=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\Clean11WidgetsStop"))using(var gallery=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\Clean11WidgetsGallery")){
+             using(var host=new DesktopWidgetHost(parent,args.Contains("--startup")))using(var stop=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\Clean11WidgetsStop"))using(var gallery=new EventWaitHandle(false,EventResetMode.AutoReset,"Local\\Clean11WidgetsGallery")){
                 var stopWait=ThreadPool.RegisterWaitForSingleObject(stop,(s,t)=>Dispatch(app,app.Shutdown),null,-1,false);var showWait=ThreadPool.RegisterWaitForSingleObject(gallery,(s,t)=>Dispatch(app,host.Gallery),null,-1,false);
                 if(args.Contains("--gallery"))host.Gallery();DockLog.Write("Desktop widget host ready; "+host.Store.Widgets.Count+" saved cards.");try{app.Run();}finally{stopWait.Unregister(null);showWait.Unregister(null);}return 0;
             }
